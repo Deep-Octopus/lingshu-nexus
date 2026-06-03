@@ -1,0 +1,71 @@
+{
+  "domain_id": "acupuncture",
+  "schema_version": "acupuncture-tvns-v0.1.0",
+  "description": "Evidence Schema seed for acupuncture with tVNS/taVNS as the first professional sub-scenario.",
+  "topic_tags": ["tVNS", "taVNS"],
+  "core_objects": [
+    "SourceDocument",
+    "SourceChunk",
+    "Study",
+    "CanonicalConcept",
+    "EvidenceAssertion",
+    "ReviewDecision",
+    "GraphRelease"
+  ],
+  "concept_types": [
+    "disease_or_symptom",
+    "acupoint",
+    "acupoint_combination",
+    "intervention",
+    "parameter",
+    "outcome",
+    "safety",
+    "literature",
+    "stimulation_site",
+    "mechanism",
+    "population"
+  ],
+  "predicates": [
+    "affects_outcome",
+    "treats",
+    "has_parameter",
+    "has_outcome",
+    "has_safety_event",
+    "contraindicated_for",
+    "uses_stimulation_site",
+    "has_mechanism",
+    "compared_with",
+    "mentioned_in",
+    "related_to"
+  ],
+  "publish_required_fields": [
+    "domain_id",
+    "subject",
+    "predicate",
+    "object",
+    "source_chunk_ids",
+    "review_status=approved",
+    "schema_version"
+  ],
+  "parameter_fields": [
+    "stimulation_site",
+    "frequency_hz",
+    "pulse_width_us",
+    "intensity",
+    "duration_minutes",
+    "course",
+    "waveform",
+    "dose",
+    "sham_control",
+    "raw_text"
+  ],
+  "source_quality_signals": [
+    "source_type",
+    "journal_quartile",
+    "citation_count",
+    "is_highly_cited",
+    "is_hot_paper",
+    "tier"
+  ]
+}
+

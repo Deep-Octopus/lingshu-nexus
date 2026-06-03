@@ -1,0 +1,44 @@
+[project]
+name = "lingshu-nexus"
+version = "0.1.0"
+description = "Internal research evidence platform scaffold for LingShu Nexus."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "uvicorn[standard]>=0.34,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<1.0",
+  "mypy>=1.15,<2.0",
+  "pytest>=8.3,<9.0",
+  "ruff>=0.11,<1.0",
+]
+
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["backend/src", "packages/lingshu-domain/src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["backend/src", "packages/lingshu-domain/src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["backend/src", "packages/lingshu-domain/src"]
+packages = ["lingshu_nexus", "lingshu_domain"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["backend/src", "packages/lingshu-domain/src"]
+

@@ -1,0 +1,21 @@
+{
+  "name": "lingshu-nexus-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "^5.2.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.2.0",
+    "vue": "^3.5.0",
+    "vue-tsc": "^2.2.8"
+  },
+  "devDependencies": {}
+}
+

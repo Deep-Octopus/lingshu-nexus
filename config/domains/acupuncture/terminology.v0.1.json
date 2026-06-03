@@ -1,0 +1,59 @@
+{
+  "domain_id": "acupuncture",
+  "terminology_version": "v0.1",
+  "status": "seed",
+  "terms": [
+    {
+      "canonical_id": "intervention:taVNS",
+      "type": "intervention",
+      "preferred_name": "taVNS",
+      "aliases": [
+        "tVNS",
+        "transcutaneous auricular vagus nerve stimulation",
+        "经皮耳迷走神经刺激",
+        "经皮迷走神经刺激"
+      ],
+      "review_note": "Initial seed from mentor tVNS material; retain original paper wording during extraction."
+    },
+    {
+      "canonical_id": "site:cymba_conchae",
+      "type": "stimulation_site",
+      "preferred_name": "耳甲艇",
+      "aliases": ["Cymba Conchae", "cymba conchae"],
+      "review_note": "Common translation risk: do not merge with cavum conchae."
+    },
+    {
+      "canonical_id": "site:cavum_conchae",
+      "type": "stimulation_site",
+      "preferred_name": "耳甲腔",
+      "aliases": [
+        "cavum conchae",
+        "concha cavity",
+        "cavity of auricular concha"
+      ],
+      "review_note": "Common translation risk: keep separate from cymba conchae."
+    },
+    {
+      "canonical_id": "site:tragus",
+      "type": "stimulation_site",
+      "preferred_name": "耳屏",
+      "aliases": ["tragus"],
+      "review_note": "Generally reliable translation, still retain original wording."
+    },
+    {
+      "canonical_id": "condition:depression",
+      "type": "disease_or_symptom",
+      "preferred_name": "抑郁症/抑郁",
+      "aliases": ["depression"],
+      "review_note": "Diagnosis-level meaning must be reviewed in context."
+    },
+    {
+      "canonical_id": "condition:blues",
+      "type": "disease_or_symptom",
+      "preferred_name": "情绪低落/轻微抑郁",
+      "aliases": ["blues", "Postpartum blues"],
+      "review_note": "Do not automatically merge with diagnosis-level depression."
+    }
+  ]
+}
+

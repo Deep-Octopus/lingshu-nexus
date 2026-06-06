@@ -25,6 +25,8 @@ class Settings:
     redis_url: str = "redis://localhost:6379/0"
     object_storage_endpoint: str = "http://localhost:9000"
     object_storage_bucket: str = "lingshu-documents"
+    object_storage_local_path: str = "data/runtime/object-store"
+    document_max_upload_bytes: int = 20 * 1024 * 1024
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_username: str = "neo4j"
 
@@ -42,6 +44,12 @@ class Settings:
             redis_url=_env("REDIS_URL", cls.redis_url),
             object_storage_endpoint=_env("OBJECT_STORAGE_ENDPOINT", cls.object_storage_endpoint),
             object_storage_bucket=_env("OBJECT_STORAGE_BUCKET", cls.object_storage_bucket),
+            object_storage_local_path=_env(
+                "OBJECT_STORAGE_LOCAL_PATH", cls.object_storage_local_path
+            ),
+            document_max_upload_bytes=int(
+                _env("DOCUMENT_MAX_UPLOAD_BYTES", str(cls.document_max_upload_bytes))
+            ),
             neo4j_uri=_env("NEO4J_URI", cls.neo4j_uri),
             neo4j_username=_env("NEO4J_USERNAME", cls.neo4j_username),
         )
@@ -50,4 +58,3 @@ class Settings:
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings.from_env()
-

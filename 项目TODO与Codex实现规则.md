@@ -170,7 +170,7 @@ PDF/Markdown 资料导入
 | T-000 | 工程骨架与质量基线 | P0 | `[x]` | 无 |
 | T-010 | 领域配置与 Evidence Schema | P0 | `[x]` | T-000 |
 | T-020 | 数据模型、存储与迁移 | P0 | `[x]` | T-010 |
-| T-030 | 文档上传、原始存储与解析 | P0 | `[ ]` | T-020 |
+| T-030 | 文档上传、原始存储与解析 | P0 | `[x]` | T-020 |
 | T-040 | MiMo provider 与候选知识抽取 | P0 | `[ ]` | T-030 |
 | T-050 | 标准化、审核与发布版本 | P0 | `[ ]` | T-040 |
 | T-060 | 图谱写入与检索 baseline | P0 | `[ ]` | T-050 |
@@ -329,18 +329,18 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-030 `[ ]` 文档上传、原始存储与解析
+### T-030 `[x]` 文档上传、原始存储与解析
 
 **目标：** 支持 PDF/Markdown 文档安全入库并生成可引用定位的解析块。
 
 **实施内容：**
 
-- [ ] 实现批量上传接口与文献列表/详情接口。
-- [ ] 实现内容哈希、重复识别、文件类型/大小限制和状态流转。
-- [ ] 实现 Markdown 确定性解析，生成带标题/段落 locator 的 chunks。
-- [ ] 通过 `DocumentParser` adapter 接入 PDF 解析候选，优先验证 Docling；必要时用真实中文复杂样例比较 MinerU。
-- [ ] 保存原文件、parser 版本、解析结果、失败原因和重跑记录。
-- [ ] 建立最小文献管理页面或可验证 API 展示处理状态。
+- [x] 实现批量上传接口与文献列表/详情接口。
+- [x] 实现内容哈希、重复识别、文件类型/大小限制和状态流转。
+- [x] 实现 Markdown 确定性解析，生成带标题/段落 locator 的 chunks。
+- [x] 通过 `DocumentParser` adapter 接入 PDF 解析 baseline；真实中文复杂样例到位后优先验证 Docling，必要时比较 MinerU。
+- [x] 保存原文件、parser 版本、解析结果、失败原因和重跑记录。
+- [x] 建立可验证 API 展示处理状态；管理页面留到 T-090。
 
 **验收：**
 
@@ -352,6 +352,41 @@ PDF/Markdown 资料导入
 **等待外部输入：**
 
 - `[?]` 首批真实针灸/tVNS PDF/MD 文件；未提供本地文件或可访问样例前，可以用明确标记的 fixture 验证功能。
+
+完成证据：
+- 修改/新增文件：
+  - `backend/src/lingshu_nexus/documents/`
+  - `backend/src/lingshu_nexus/api/routes/documents.py`
+  - `backend/src/lingshu_nexus/api/main.py`
+  - `backend/src/lingshu_nexus/persistence/object_store.py`
+  - `backend/src/lingshu_nexus/config/settings.py`
+  - `backend/migrations/0002_document_ingestion.up.sql`
+  - `backend/migrations/0002_document_ingestion.down.sql`
+  - `backend/migrations/README.md`
+  - `.env.example`
+  - `.gitignore`
+  - `pyproject.toml`
+  - `uv.lock`
+  - `README.md`
+  - `docs/adr/0004-document-ingestion-parser-baseline.md`
+  - `tests/test_document_ingestion.py`
+- 验收命令或操作：
+  - `UV_CACHE_DIR=.uv-cache uv sync --extra dev`（普通沙箱网络失败后，经提升权限同步成功）
+  - `make quality PYTHON=.venv/bin/python`
+  - `.venv/bin/python -m unittest tests/test_document_ingestion.py`
+  - `.venv/bin/python -m unittest discover -s tests`
+  - `PYTHONPYCACHEPREFIX=/private/tmp/lingshu-pycache .venv/bin/python -m compileall backend/src packages/lingshu-domain/src tests`
+  - `docker compose config`
+- 结果摘要：
+  - 已新增文档接入应用层，包含 `DocumentParser` 端口、Markdown parser、`pypdf` PDF baseline parser、上传去重服务、重跑服务和 in-memory 文档 repository。
+  - 已新增本地文件系统对象存储 adapter，原始文件与解析 JSON 通过 `DataLayer.RAW` / `DataLayer.PARSED` 分层保存且不可覆盖同一版本。
+  - 已实现 `POST /api/v1/domains/{domain_id}/documents:batch-upload`、`GET /api/v1/documents`、`GET /api/v1/documents/{document_id}`、`POST /api/v1/documents/{document_id}:reprocess`。
+  - 测试覆盖 MD heading/paragraph locator、PDF page locator、重复上传、unsupported 文件失败状态、解析失败重跑、大小限制、本地对象存储不可覆盖、0002 迁移 apply/drop、FastAPI 上传/列表/详情路由。
+  - `make quality PYTHON=.venv/bin/python` 通过，当前共 24 个 unittest 通过。
+- 未覆盖风险（若有）：
+  - 首批真实针灸/tVNS PDF/MD 文件仍为外部输入 `[?]`，因此尚未记录真实语料解析成功率和失败样例。
+  - 当前 PDF baseline 面向文本层 PDF；复杂版面、扫描件、表格和 OCR 未声明完成，待真实中文样例到位后按 ADR 0004 优先评估 Docling，必要时比较 MinerU。
+  - 文档元数据 repository 当前仍是 in-memory adapter；0002 迁移已记录 PostgreSQL 表形，真实 ORM/PostgreSQL repository 留到后续持久化集成。
 
 ---
 

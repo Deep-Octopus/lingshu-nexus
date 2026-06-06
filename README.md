@@ -5,9 +5,10 @@ with the `acupuncture` domain and keeps tVNS/taVNS as a first professional
 sub-scenario, while avoiding patient-facing treatment advice and device control.
 
 This repository currently contains the T-000 engineering scaffold plus the
-T-010/T-020 foundations: versioned acupuncture/tVNS domain config, Evidence
+T-010/T-030 foundations: versioned acupuncture/tVNS domain config, Evidence
 Schema dataclasses, persistence records, SQL migrations, object storage and graph
-repository ports, quality commands, tests, and ADRs.
+repository ports, document upload/parsing services, quality commands, tests, and
+ADRs.
 
 ## Prerequisites
 
@@ -64,6 +65,27 @@ curl http://localhost:8000/healthz
 
 Expected response includes `status: ok` and `default_domain_id: acupuncture`.
 
+### Document Ingestion API
+
+T-030 adds synchronous PDF/Markdown ingestion endpoints for the internal research
+workflow:
+
+- `POST /api/v1/domains/{domain_id}/documents:batch-upload`
+- `GET /api/v1/documents?domain_id=acupuncture`
+- `GET /api/v1/documents/{document_id}?domain_id=acupuncture`
+- `POST /api/v1/documents/{document_id}:reprocess?domain_id=acupuncture`
+
+Uploads are content-hashed before storage. Duplicate bytes in the same
+`domain_id` return the existing document record instead of creating another
+formal document. Raw uploads and parsed chunk JSON are written through the
+object-store port; local API runs use `OBJECT_STORAGE_LOCAL_PATH`, which defaults
+to `data/runtime/object-store`.
+
+Markdown parsing is deterministic and produces heading/paragraph locators. PDF
+parsing is behind the `DocumentParser` adapter and uses `pypdf` as the baseline
+text-layer parser; complex layout/OCR evaluation with real Chinese samples is
+deferred until the first corpus is available.
+
 ## Worker
 
 The worker entrypoint is a placeholder for future queue tasks:
@@ -106,7 +128,6 @@ structure.
 
 T-000 intentionally does not implement:
 
-- document upload or parsing
 - MiMo provider calls
 - graph database writes
 - retrieval or GraphRAG

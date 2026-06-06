@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115,<1.0",
+  "pypdf>=6.0,<7.0",
+  "python-multipart>=0.0.20,<1.0",
   "uvicorn[standard]>=0.34,<1.0",
 ]
 
@@ -41,4 +43,3 @@ packages = ["lingshu_nexus", "lingshu_domain"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["backend/src", "packages/lingshu-domain/src"]
-

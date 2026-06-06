@@ -4,6 +4,9 @@ from fastapi import FastAPI
 
 from lingshu_domain import DEFAULT_DOMAIN_ID
 from lingshu_nexus.config.settings import get_settings
+from lingshu_nexus.documents import create_document_service
+from lingshu_nexus.persistence.object_store import LocalFilesystemObjectStore
+from lingshu_nexus.api.routes.documents import router as documents_router
 
 
 def create_app() -> FastAPI:
@@ -14,6 +17,11 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.app_env != "production" else None,
         redoc_url=None,
     )
+    app.state.document_service = create_document_service(
+        object_store=LocalFilesystemObjectStore(settings.object_storage_local_path),
+        max_upload_bytes=settings.document_max_upload_bytes,
+    )
+    app.include_router(documents_router)
 
     @app.get("/healthz", tags=["system"])
     async def healthz() -> dict[str, str]:
@@ -28,4 +36,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-

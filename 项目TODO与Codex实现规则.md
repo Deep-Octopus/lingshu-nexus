@@ -171,7 +171,7 @@ PDF/Markdown 资料导入
 | T-010 | 领域配置与 Evidence Schema | P0 | `[x]` | T-000 |
 | T-020 | 数据模型、存储与迁移 | P0 | `[x]` | T-010 |
 | T-030 | 文档上传、原始存储与解析 | P0 | `[x]` | T-020 |
-| T-040 | MiMo provider 与候选知识抽取 | P0 | `[ ]` | T-030 |
+| T-040 | MiMo provider 与候选知识抽取 | P0 | `[x]` | T-030 |
 | T-050 | 标准化、审核与发布版本 | P0 | `[ ]` | T-040 |
 | T-060 | 图谱写入与检索 baseline | P0 | `[ ]` | T-050 |
 | T-070 | Agent Skill Registry 与只读 Skill | P0 | `[ ]` | T-060 |
@@ -390,20 +390,20 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-040 `[ ]` MiMo Provider 与候选知识抽取
+### T-040 `[x]` MiMo Provider 与候选知识抽取
 
 **目标：** 通过配置化 MiMo 调用，从解析片段生成结构化 candidate 证据数据。
 
 **实施内容：**
 
-- [ ] 创建 LLM provider 端口及 MiMo adapter。
-- [ ] 通过环境/配置读取 `MIMO_API_KEY`、`MIMO_BASE_URL` 和 `MIMO_MODEL_ID`，支持后续 provider 替换。
-- [ ] 建立抽取 Prompt 版本管理和结构化输出 Schema 校验。
-- [ ] 从 chunks 抽取实体、关系、EvidenceAssertion 及对应来源定位。
-- [ ] 对 tVNS/taVNS 文献重点抽取刺激位置、频率、脉宽、强度、波形、疗程、sham/control、结局指标、禁忌症、不良反应和安全注意事项。
-- [ ] 对研究设计类信息保留 RCT、分组方式、纳排标准、样本量、主要/次要结局、研究地区或团队等字段，供后续科研方案和文献格局问答使用。
-- [ ] 保存调用所用 provider/model/prompt/schema 版本、耗时和费用/Token 可得指标。
-- [ ] 提供 mock/fake provider，确保无真实 key 时也可运行单元/集成测试。
+- [x] 创建 LLM provider 端口及 MiMo adapter。
+- [x] 通过环境/配置读取 `MIMO_API_KEY`、`MIMO_BASE_URL` 和 `MIMO_MODEL_ID`，支持后续 provider 替换。
+- [x] 建立抽取 Prompt 版本管理和结构化输出 Schema 校验。
+- [x] 从 chunks 抽取实体、关系、EvidenceAssertion 及对应来源定位。
+- [x] 对 tVNS/taVNS 文献重点抽取刺激位置、频率、脉宽、强度、波形、疗程、sham/control、结局指标、禁忌症、不良反应和安全注意事项。
+- [x] 对研究设计类信息保留 RCT、分组方式、纳排标准、样本量、主要/次要结局、研究地区或团队等字段，供后续科研方案和文献格局问答使用。
+- [x] 保存调用所用 provider/model/prompt/schema 版本、耗时和费用/Token 可得指标。
+- [x] 提供 mock/fake provider，确保无真实 key 时也可运行单元/集成测试。
 
 **验收：**
 
@@ -415,6 +415,44 @@ PDF/Markdown 资料导入
 **等待外部输入：**
 
 - `[?]` 真实 MiMo key/base URL/model ID 在联调时由用户配置，不写入仓库。
+
+完成证据：
+- 修改/新增文件：
+  - `backend/src/lingshu_nexus/extraction/`
+  - `backend/src/lingshu_nexus/api/routes/documents.py`
+  - `backend/src/lingshu_nexus/config/settings.py`
+  - `backend/src/lingshu_nexus/documents/parsers.py`
+  - `backend/migrations/0003_candidate_extraction.up.sql`
+  - `backend/migrations/0003_candidate_extraction.down.sql`
+  - `backend/migrations/README.md`
+  - `config/prompts/acupuncture/literature_extraction.v0.1.md`
+  - `.env.example`
+  - `pyproject.toml`
+  - `uv.lock`
+  - `README.md`
+  - `docs/adr/0005-llm-provider-and-candidate-extraction.md`
+  - `tests/test_candidate_extraction.py`
+- 验收命令或操作：
+  - `UV_CACHE_DIR=.uv-cache uv lock --offline`
+  - `make quality PYTHON=.venv/bin/python`
+  - `.venv/bin/ruff check backend/src/lingshu_nexus/extraction`
+  - `.venv/bin/ruff format --check backend/src/lingshu_nexus/extraction`
+  - `.venv/bin/mypy backend/src packages/lingshu-domain/src scripts tests`
+  - `.venv/bin/python -m unittest tests/test_candidate_extraction.py`
+  - `.venv/bin/python -m unittest discover -s tests`
+  - `PYTHONPYCACHEPREFIX=/private/tmp/lingshu-pycache .venv/bin/python -m compileall backend/src packages/lingshu-domain/src tests`
+  - `git diff --check`
+- 结果摘要：
+  - 已新增 `LlmProvider` 端口、`MiMoProvider` adapter 和 `FakeLlmProvider`，MiMo 仅从环境变量读取 base URL、API key 和模型配置；占位配置会拒绝 live call。
+  - 已新增版本化针灸文献抽取 prompt，明确 PDF/外部文本只作为资料数据处理，不作为系统指令执行。
+  - 已新增 candidate extraction service，将 parsed chunks 转换为 candidate entities、relations 和 `ReviewStatus.PENDING` 的 `EvidenceAssertion`，并校验 JSON、Schema、source chunk locator 和置信度。
+  - 已将 candidate 结果写入 `DataLayer.CANDIDATE` 对象 artifact，记录 provider/model/prompt/schema、token usage、latency、raw response hash 和 study metadata。
+  - 测试覆盖 fake provider 成功抽取、无效 chunk 引用拒绝、无效 JSON 拒绝、MiMo 未配置时不联网失败、candidate artifact 不包含 API key、0003 迁移 apply/drop。
+  - `make quality PYTHON=.venv/bin/python` 通过，当前共 29 个 unittest 通过。
+- 未覆盖风险（若有）：
+  - 真实 MiMo key/base URL/model ID 仍为外部输入 `[?]`，本次未执行 live MiMo 调用，也未声称真实模型抽取质量。
+  - MiMo adapter 当前按可配置 chat-completions-compatible 传输实现；若真实 MiMo 契约不同，应在拿到接口样例后只替换 provider adapter，不修改 Evidence Schema 或审核发布边界。
+  - candidate repository 当前为 in-memory adapter；0003 迁移已记录 PostgreSQL 表形，真实 ORM/PostgreSQL repository 留到后续持久化集成。
 
 ---
 

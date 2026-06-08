@@ -5,10 +5,10 @@ with the `acupuncture` domain and keeps tVNS/taVNS as a first professional
 sub-scenario, while avoiding patient-facing treatment advice and device control.
 
 This repository currently contains the T-000 engineering scaffold plus the
-T-010/T-030 foundations: versioned acupuncture/tVNS domain config, Evidence
+T-010/T-040 foundations: versioned acupuncture/tVNS domain config, Evidence
 Schema dataclasses, persistence records, SQL migrations, object storage and graph
-repository ports, document upload/parsing services, quality commands, tests, and
-ADRs.
+repository ports, document upload/parsing services, candidate extraction
+services, quality commands, tests, and ADRs.
 
 ## Prerequisites
 
@@ -86,6 +86,23 @@ parsing is behind the `DocumentParser` adapter and uses `pypdf` as the baseline
 text-layer parser; complex layout/OCR evaluation with real Chinese samples is
 deferred until the first corpus is available.
 
+### Candidate Extraction
+
+T-040 adds an `EvidenceExtractor` service that reads parsed chunks and writes
+candidate-layer outputs only. It does not approve, publish, or write graph data.
+
+The default live provider adapter is MiMo, configured only through environment
+variables:
+
+- `MIMO_API_KEY`
+- `MIMO_BASE_URL`
+- `MIMO_MODEL_ID`
+- `MIMO_EXTRACTION_MODEL_ID` optional; falls back to `MIMO_MODEL_ID`
+
+Unit and integration tests use `FakeLlmProvider`, so no real key is required for
+offline validation. Live MiMo extraction is intentionally blocked until real
+provider settings are supplied.
+
 ## Worker
 
 The worker entrypoint is a placeholder for future queue tasks:
@@ -128,7 +145,6 @@ structure.
 
 T-000 intentionally does not implement:
 
-- MiMo provider calls
 - graph database writes
 - retrieval or GraphRAG
 - Skill execution

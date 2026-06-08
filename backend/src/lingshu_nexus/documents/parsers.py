@@ -5,11 +5,12 @@ from __future__ import annotations
 import re
 import warnings
 from dataclasses import dataclass
+from importlib import import_module
 from io import BytesIO
-from typing import Protocol
+from typing import Any, Protocol
 
 from lingshu_domain import ChunkLocator, SourceChunk
-from lingshu_domain.validation import SchemaValidationError, require_domain_id, require_text
+from lingshu_domain.validation import require_domain_id, require_text
 from lingshu_nexus.documents.models import ParsedDocument
 
 MARKDOWN_PARSER_VERSION = "markdown-deterministic-v0.1.0"
@@ -79,18 +80,21 @@ class PyPdfDocumentParser:
     def parse(self, request: DocumentParseRequest) -> ParsedDocument:
         if not request.content.startswith(b"%PDF"):
             raise DocumentParseError("PDF parser could not read file: missing PDF header")
+        pdf_reader_class: Any
         try:
-            from pypdf import PdfReader
+            from pypdf import PdfReader as PypdfReader
+
+            pdf_reader_class = PypdfReader
         except ImportError as exc:
             try:
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=DeprecationWarning, module="PyPDF2")
-                    from PyPDF2 import PdfReader
+                    pdf_reader_class = getattr(import_module("PyPDF2"), "PdfReader")
             except ImportError:
                 return self._parse_with_minimal_fallback(request, exc)
 
         try:
-            reader = PdfReader(BytesIO(request.content))
+            reader = pdf_reader_class(BytesIO(request.content))
         except Exception as exc:  # pragma: no cover - exact parser exceptions vary
             raise DocumentParseError(f"PDF parser could not read file: {exc}") from exc
 

@@ -11,3 +11,7 @@ T-030 adds `0002_document_ingestion` for upload/parser status metadata. The
 runtime service currently uses an in-memory document repository plus immutable
 object-store adapters; the migration records the table shape expected when the
 document repository is moved to PostgreSQL.
+
+T-040 adds `0003_candidate_extraction` for provider/model/prompt/schema metadata
+and candidate EvidenceAssertion records. Candidate data remains separate from
+published graph data and must pass later review before release.

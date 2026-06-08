@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1", tags=["documents"])
 
 
 def get_document_service(request: Request) -> DocumentIngestService:
-    return request.app.state.document_service
+    return cast(DocumentIngestService, request.app.state.document_service)
 
 
 @router.post("/domains/{domain_id}/documents:batch-upload")

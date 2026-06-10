@@ -1,10 +1,10 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:15.4
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-lingshu_nexus}
       POSTGRES_USER: ${POSTGRES_USER:-lingshu}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-postgres-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lingshu666}
     ports:
       - "5432:5432"
     volumes:
@@ -16,7 +16,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.2.4
     ports:
       - "6379:6379"
     healthcheck:
@@ -26,11 +26,11 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-change-me-minio-user}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio-password}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lingshu}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-lingshu666}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -43,9 +43,9 @@ services:
       retries: 5
 
   neo4j:
-    image: neo4j:5-community
+    image: neo4j:latest
     environment:
-      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/change-me-neo4j-password}
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/lingshu666}
       NEO4J_server_memory_heap_initial__size: 512m
       NEO4J_server_memory_heap_max__size: 1G
     ports:

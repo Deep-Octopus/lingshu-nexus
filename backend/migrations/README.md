@@ -15,3 +15,7 @@ document repository is moved to PostgreSQL.
 T-040 adds `0003_candidate_extraction` for provider/model/prompt/schema metadata
 and candidate EvidenceAssertion records. Candidate data remains separate from
 published graph data and must pass later review before release.
+
+T-050 adds `0004_review_release` for review batches, standardization candidates,
+and immutable release snapshots. Existing candidate rows are not overwritten when
+review decisions or published release artifacts are created.

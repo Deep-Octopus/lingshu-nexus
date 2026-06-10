@@ -242,6 +242,7 @@ def _parse_candidate_payload(
     source_chunks: tuple[SourceChunk, ...],
 ) -> _ParsedCandidatePayload:
     allowed_chunk_ids = {chunk.id for chunk in source_chunks}
+    chunk_parser_versions = {chunk.id: chunk.parser_version for chunk in source_chunks}
     entities = tuple(_parse_term(item, "entities[]") for item in _list(payload.get("entities")))
     relations = tuple(
         _parse_relation(
@@ -259,6 +260,7 @@ def _parse_candidate_payload(
             domain_id=domain_id,
             document_id=document_id,
             allowed_chunk_ids=allowed_chunk_ids,
+            chunk_parser_versions=chunk_parser_versions,
         )
         for index, item in enumerate(_list(payload.get("evidence_assertions")))
     )
@@ -304,9 +306,18 @@ def _parse_assertion(
     domain_id: str,
     document_id: str,
     allowed_chunk_ids: set[str],
+    chunk_parser_versions: dict[str, str],
 ) -> EvidenceAssertion:
     value = _object(item, "evidence_assertions[]")
     source_chunk_ids = _source_chunk_ids(value, allowed_chunk_ids)
+    metadata = _object_or_empty(value.get("metadata"))
+    metadata["source_parser_versions"] = sorted(
+        {
+            chunk_parser_versions[chunk_id]
+            for chunk_id in source_chunk_ids
+            if chunk_id in chunk_parser_versions
+        }
+    )
     assertion = EvidenceAssertion(
         id=str(value.get("id") or f"candidate_{document_id}_{index:04d}"),
         domain_id=domain_id,
@@ -321,7 +332,7 @@ def _parse_assertion(
         direction=Direction(str(value.get("direction", Direction.UNCLEAR.value))),
         extraction_confidence=float(value.get("extraction_confidence", 0)),
         source_quality_signals=_parse_source_quality_signals(value.get("source_quality_signals")),
-        metadata=_object_or_empty(value.get("metadata")),
+        metadata=metadata,
     )
     if not assertion.source_chunk_ids:
         raise CandidateExtractionError("EvidenceAssertion must include source_chunk_ids")

@@ -268,8 +268,10 @@ class EvidenceAssertion:
     def validate_publishable(self) -> None:
         require_domain_id(self.domain_id)
         require_non_empty(self.source_chunk_ids, "source_chunk_ids")
-        if self.review_status is not ReviewStatus.APPROVED:
-            raise SchemaValidationError("EvidenceAssertion must be approved before release")
+        if self.review_status not in {ReviewStatus.APPROVED, ReviewStatus.CONFLICT}:
+            raise SchemaValidationError(
+                "EvidenceAssertion must be approved or conflict-reviewed before release"
+            )
 
 
 @dataclass(frozen=True)
@@ -312,4 +314,3 @@ class GraphRelease:
         require_text(self.index_version, "GraphRelease.index_version")
         require_text(self.released_by, "GraphRelease.released_by")
         require_non_empty(self.included_assertion_ids, "included_assertion_ids")
-

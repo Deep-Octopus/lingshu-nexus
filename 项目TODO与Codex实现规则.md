@@ -172,7 +172,7 @@ PDF/Markdown 资料导入
 | T-020 | 数据模型、存储与迁移 | P0 | `[x]` | T-010 |
 | T-030 | 文档上传、原始存储与解析 | P0 | `[x]` | T-020 |
 | T-040 | MiMo provider 与候选知识抽取 | P0 | `[x]` | T-030 |
-| T-050 | 标准化、审核与发布版本 | P0 | `[ ]` | T-040 |
+| T-050 | 标准化、审核与发布版本 | P0 | `[x]` | T-040 |
 | T-060 | 图谱写入与检索 baseline | P0 | `[ ]` | T-050 |
 | T-070 | Agent Skill Registry 与只读 Skill | P0 | `[ ]` | T-060 |
 | T-080 | 流式问答前后端 | P0 | `[ ]` | T-060, T-070 |
@@ -456,20 +456,20 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-050 `[ ]` 标准化、审核与发布版本
+### T-050 `[x]` 标准化、审核与发布版本
 
 **目标：** 将自动抽取限定在候选层，并通过可审计流程产生正式知识版本。
 
 **实施内容：**
 
-- [ ] 实现概念标准化候选、别名合并和人工修订入口。
-- [ ] 实现 tVNS/taVNS 专业术语别名归一和保留原文写法，避免耳部刺激位置误译。
-- [ ] 为 `depression`、`blues`、`Postpartum blues` 等易混淆概念提供待审核映射，不自动合并为同一疾病实体。
-- [ ] 实现审核批次、单条批准/驳回/修改、审核备注和冲突标记。
-- [ ] 审核页展示来源质量信号和冲突证据，不因高质量来源存在就自动覆盖低质量来源的原始结论。
-- [ ] 实现 `GraphRelease` 创建、预览差异、激活和回滚。
-- [ ] 校验发布要求：来源定位、审核决定、Schema/Prompt/model/parser 版本完整。
-- [ ] 发布前后保留 candidate 数据和历史发布记录，不覆盖历史。
+- [x] 实现概念标准化候选、别名合并和人工修订入口。
+- [x] 实现 tVNS/taVNS 专业术语别名归一和保留原文写法，避免耳部刺激位置误译。
+- [x] 为 `depression`、`blues`、`Postpartum blues` 等易混淆概念提供待审核映射，不自动合并为同一疾病实体。
+- [x] 实现审核批次、单条批准/驳回/修改、审核备注和冲突标记。
+- [x] 审核页展示来源质量信号和冲突证据，不因高质量来源存在就自动覆盖低质量来源的原始结论。
+- [x] 实现 `GraphRelease` 创建、预览差异、激活和回滚。
+- [x] 校验发布要求：来源定位、审核决定、Schema/Prompt/model/parser 版本完整。
+- [x] 发布前后保留 candidate 数据和历史发布记录，不覆盖历史。
 
 **验收：**
 
@@ -477,6 +477,38 @@ PDF/Markdown 资料导入
 - 批准的 assertion 可加入新 release，驳回项不会加入。
 - 激活 release 后可以切换回上一个版本，历史数据仍可查询。
 - 冲突命题可并存且显示冲突状态。
+
+完成证据：
+- 修改/新增文件：
+  - `backend/src/lingshu_nexus/review/`
+  - `backend/src/lingshu_nexus/api/routes/review.py`
+  - `backend/src/lingshu_nexus/api/main.py`
+  - `backend/src/lingshu_nexus/extraction/service.py`
+  - `packages/lingshu-domain/src/lingshu_domain/evidence.py`
+  - `backend/migrations/0004_review_release.up.sql`
+  - `backend/migrations/0004_review_release.down.sql`
+  - `backend/migrations/README.md`
+  - `docs/adr/0006-review-release-governance.md`
+  - `tests/test_review_release.py`
+  - `项目TODO与Codex实现规则.md`
+- 验收命令或操作：
+  - `.venv/bin/python -m unittest tests/test_review_release.py`
+  - `.venv/bin/python -m unittest discover -s tests`
+  - `.venv/bin/ruff check backend/src/lingshu_nexus/review backend/src/lingshu_nexus/api/routes/review.py backend/src/lingshu_nexus/api/main.py backend/src/lingshu_nexus/extraction/service.py packages/lingshu-domain/src/lingshu_domain/evidence.py tests/test_review_release.py`
+  - `.venv/bin/ruff format --check backend/src/lingshu_nexus/review backend/src/lingshu_nexus/api/routes/review.py backend/src/lingshu_nexus/api/main.py backend/src/lingshu_nexus/extraction/service.py packages/lingshu-domain/src/lingshu_domain/evidence.py tests/test_review_release.py`
+  - `.venv/bin/mypy backend/src packages/lingshu-domain/src scripts tests`
+  - `make quality PYTHON=.venv/bin/python`
+- 结果摘要：
+  - 新增 `ReviewReleaseService`、术语标准化器和 in-memory review repository，支持从 candidate run 创建审核批次、生成标准化候选、保留 candidate 原始数据、批准/驳回/修改/冲突标记与基础审计。
+  - tVNS/taVNS 和耳部刺激位置别名可归一到种子概念并保留原文；`depression`、`blues`、`Postpartum blues` 等敏感疾病/症状词只生成 `needs_review` 映射，不自动合并。
+  - 新增 release 预览、创建、激活和回滚；发布校验要求来源 chunk、审核决策以及 candidate run/provider/model/prompt/schema/parser 版本 lineage 完整。
+  - release snapshot 写入 `DataLayer.PUBLISHED`，candidate artifact 保留在 `DataLayer.CANDIDATE`；冲突命题可带冲突元数据并存发布。
+  - 新增 Review/Release API 路由，返回标准化候选、来源质量信号、冲突信息和 release 历史，供 T-090 管理面板接入。
+  - 当前共 35 个 unittest 通过，`make quality PYTHON=.venv/bin/python` 通过。
+- 未覆盖风险（若有）：
+  - 实际审核人员账号、RBAC 权限和生产级审计策略仍依赖 E-004/T-110；本次用 actor/reviewer 字符串和 audit event 记录完成可验证基础链路。
+  - review repository 仍为 in-memory adapter；0004 迁移记录 PostgreSQL 表形，真实 ORM/PostgreSQL repository 留到后续持久化集成。
+  - T-060 前尚未把 active release 同步到 Neo4j 或检索索引，本任务只完成发布版本治理边界。
 
 ---
 

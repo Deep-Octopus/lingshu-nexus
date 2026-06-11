@@ -173,7 +173,7 @@ PDF/Markdown 资料导入
 | T-030 | 文档上传、原始存储与解析 | P0 | `[x]` | T-020 |
 | T-040 | MiMo provider 与候选知识抽取 | P0 | `[x]` | T-030 |
 | T-050 | 标准化、审核与发布版本 | P0 | `[x]` | T-040 |
-| T-060 | 图谱写入与检索 baseline | P0 | `[ ]` | T-050 |
+| T-060 | 图谱写入与检索 baseline | P0 | `[x]` | T-050 |
 | T-070 | Agent Skill Registry 与只读 Skill | P0 | `[ ]` | T-060 |
 | T-080 | 流式问答前后端 | P0 | `[ ]` | T-060, T-070 |
 | T-090 | 管理面板 P0 能力 | P0 | `[ ]` | T-030, T-050, T-070 |
@@ -512,18 +512,18 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-060 `[ ]` 图谱写入与检索 Baseline
+### T-060 `[x]` 图谱写入与检索 Baseline
 
 **目标：** 将已发布证据写入可查询图谱，并提供带引用的基础检索能力。
 
 **实施内容：**
 
-- [ ] 实现 `GraphRepository`，将 active/published release 内容同步或绑定至 Neo4j。
-- [ ] 定义局部图查询能力：概念、证据命题、来源文献和关系导航。
-- [ ] 实现 `RetrievalService` 端口。
-- [ ] 优先验证 Neo4j GraphRAG for Python 或可行 baseline retriever，并附加 `domain_id`、active release 与审核状态过滤。
-- [ ] 必要时引入片段向量检索补充召回，并记录选择理由。
-- [ ] 建立检索结果到原文 chunk 的引用映射。
+- [x] 实现 `GraphRepository`，将 active/published release 内容同步或绑定至图谱；提供 release-local in-memory baseline，并预留可注入 Neo4j driver 的 adapter。
+- [x] 定义局部图查询能力：概念、证据命题、来源文献和关系导航。
+- [x] 实现 `RetrievalService` 端口。
+- [x] 优先验证可行 baseline retriever，并附加 `domain_id`、active release 与审核状态过滤。
+- [x] 已评估暂不引入片段向量检索；首版 lexical baseline 可完成可验证闭环，向量/GraphRAG 引擎留到 T-120 评测收益明确后接入。
+- [x] 建立检索结果到原文 chunk 的引用映射。
 
 **验收：**
 
@@ -531,6 +531,27 @@ PDF/Markdown 资料导入
 - 给定样例 query，返回的证据结果包含文档和 chunk locator。
 - 切换 release 后检索结果随版本正确改变。
 - candidate-only 数据无法通过用户检索接口获取。
+
+完成证据：
+- 修改/新增文件：
+  - 图谱端口与 adapter：`backend/src/lingshu_nexus/persistence/graph.py`、`backend/src/lingshu_nexus/persistence/__init__.py`
+  - 检索服务与 API：`backend/src/lingshu_nexus/retrieval/`、`backend/src/lingshu_nexus/api/routes/retrieval.py`、`backend/src/lingshu_nexus/api/main.py`
+  - 迁移与文档：`backend/migrations/0005_graph_retrieval.up.sql`、`backend/migrations/0005_graph_retrieval.down.sql`、`backend/migrations/README.md`、`docs/adr/0007-graph-retrieval-baseline.md`
+  - 测试：`tests/test_graph_retrieval.py`
+- 验收命令或操作：
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest tests/test_graph_retrieval.py tests/test_persistence_foundation.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest`
+  - `env UV_CACHE_DIR=.uv-cache uv run ruff check backend/src/lingshu_nexus/persistence/graph.py backend/src/lingshu_nexus/persistence/__init__.py backend/src/lingshu_nexus/retrieval backend/src/lingshu_nexus/api/main.py backend/src/lingshu_nexus/api/routes/retrieval.py tests/test_graph_retrieval.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run mypy backend/src/lingshu_nexus/persistence/graph.py backend/src/lingshu_nexus/retrieval backend/src/lingshu_nexus/api/routes/retrieval.py tests/test_graph_retrieval.py`
+- 结果摘要：
+  - 新增 release-local 图谱写入、active release 指针、概念/关系/来源文献导航和带 citation 的检索结果。
+  - `RetrievalService` 只依赖 active `ReleaseRecord` 与 `GraphRepository`，不依赖 candidate repository；测试覆盖 candidate-only 数据无法通过用户检索接口获取。
+  - 样例 query 可返回 active release 中的已审核命题，并包含 `document_id`、`chunk_id` 和 locator；切换 active release 后检索结果随版本变化。
+  - 相关测试 9 个通过，全量 pytest 40 个通过；定向 ruff 与 mypy 通过。
+- 未覆盖风险（若有）：
+  - 当前 Neo4j adapter 采用外部 driver 注入，尚未在真实 Neo4j 服务上做端到端联调；本地可验证路径使用 in-memory baseline。
+  - 暂未引入向量检索或 Neo4j GraphRAG for Python；需等 T-120 评测集确定后用召回/质量收益决定是否引入。
+  - `env UV_CACHE_DIR=.uv-cache uv run python scripts/quality.py lint` 当前会因历史文件中既有 ruff 问题失败，T-060 新增/修改文件已通过定向 ruff 检查。
 
 ---
 

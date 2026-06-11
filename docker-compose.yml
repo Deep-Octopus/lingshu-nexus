@@ -43,7 +43,7 @@ services:
       retries: 5
 
   neo4j:
-    image: neo4j:latest
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/neo4j:latest-linuxarm64
     environment:
       NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/lingshu666}
       NEO4J_server_memory_heap_initial__size: 512m

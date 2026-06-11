@@ -1,5 +1,13 @@
 """Persistence ports and foundational data models."""
 
+from lingshu_nexus.persistence.graph import (
+    GraphNode,
+    GraphRelationship,
+    GraphRepository,
+    GraphSourceReference,
+    InMemoryGraphRepository,
+    Neo4jGraphRepository,
+)
 from lingshu_nexus.persistence.models import (
     AuditEvent,
     ConfigVersion,
@@ -21,12 +29,17 @@ __all__ = [
     "ConfigVersion",
     "DataLayer",
     "DuplicateObjectError",
+    "GraphNode",
+    "GraphRelationship",
+    "GraphRepository",
+    "GraphSourceReference",
     "GraphSyncRecord",
+    "InMemoryGraphRepository",
     "InMemoryObjectStore",
     "JobRun",
     "JobStatus",
+    "Neo4jGraphRepository",
     "ObjectRef",
     "ObjectStore",
     "StoredObjectRecord",
 ]
-

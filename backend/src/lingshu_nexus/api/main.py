@@ -4,10 +4,12 @@ from fastapi import FastAPI
 
 from lingshu_domain import DEFAULT_DOMAIN_ID
 from lingshu_nexus.api.routes.documents import router as documents_router
+from lingshu_nexus.api.routes.retrieval import router as retrieval_router
 from lingshu_nexus.api.routes.review import router as review_router
 from lingshu_nexus.config.settings import get_settings
 from lingshu_nexus.documents import create_document_service
 from lingshu_nexus.persistence.object_store import LocalFilesystemObjectStore
+from lingshu_nexus.retrieval import create_retrieval_service
 from lingshu_nexus.review import create_review_release_service
 
 
@@ -25,8 +27,12 @@ def create_app() -> FastAPI:
         max_upload_bytes=settings.document_max_upload_bytes,
     )
     app.state.review_release_service = create_review_release_service(object_store=object_store)
+    app.state.retrieval_service = create_retrieval_service(
+        release_reader=app.state.review_release_service
+    )
     app.include_router(documents_router)
     app.include_router(review_router)
+    app.include_router(retrieval_router)
 
     @app.get("/healthz", tags=["system"])
     async def healthz() -> dict[str, str]:

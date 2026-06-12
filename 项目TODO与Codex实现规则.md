@@ -175,7 +175,7 @@ PDF/Markdown 资料导入
 | T-050 | 标准化、审核与发布版本 | P0 | `[x]` | T-040 |
 | T-060 | 图谱写入与检索 baseline | P0 | `[x]` | T-050 |
 | T-070 | Agent Skill Registry 与只读 Skill | P0 | `[x]` | T-060 |
-| T-080 | 流式问答前后端 | P0 | `[ ]` | T-060, T-070 |
+| T-080 | 流式问答前后端 | P0 | `[x]` | T-060, T-070 |
 | T-090 | 管理面板 P0 能力 | P0 | `[ ]` | T-030, T-050, T-070 |
 | T-100 | 增量更新与 SourceConnector | P0/P1 | `[ ]` | T-030, T-050 |
 | T-110 | 权限、审计、安全与观测 | P0 | `[ ]` | T-020 起贯穿实施 |
@@ -606,17 +606,17 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-080 `[ ]` 流式问答前后端
+### T-080 `[x]` 流式问答前后端
 
 **目标：** 实现研究者可使用的网页流式证据对话。
 
 **实施内容：**
 
-- [ ] 实现会话和消息数据模型。
-- [ ] 实现 SSE 流式消息 API，至少支持检索阶段、文本片段、引用和完成/错误事件。
-- [ ] 实现网页对话页、Skill 选择、引用侧栏、来源跳转和失败提示。
-- [ ] 在回答中展示使用的 Skill、active release 与研究辅助声明。
-- [ ] 实现反馈入口，如有用/无用或纠错备注。
+- [x] 实现会话和消息数据模型。
+- [x] 实现 SSE 流式消息 API，至少支持检索阶段、文本片段、引用和完成/错误事件。
+- [x] 实现网页对话页、Skill 选择、引用侧栏、来源跳转和失败提示。
+- [x] 在回答中展示使用的 Skill、active release 与研究辅助声明。
+- [x] 实现反馈入口，如有用/无用或纠错备注。
 
 **验收：**
 
@@ -624,6 +624,32 @@ PDF/Markdown 资料导入
 - 有证据的回答能展开引用到来源文档/片段。
 - 无 active release 或无证据时给出清晰限制提示，不编造结论。
 - 对话不能引用未审核 candidate 数据。
+
+完成证据：
+- 修改/新增文件：
+  - 后端 Chat：`backend/src/lingshu_nexus/chat/`
+  - API：`backend/src/lingshu_nexus/api/routes/chat.py`、`backend/src/lingshu_nexus/api/main.py`
+  - 迁移：`backend/migrations/0007_chat_sessions.up.sql`、`backend/migrations/0007_chat_sessions.down.sql`、`backend/migrations/README.md`
+  - 前端：`frontend/src/App.vue`、`frontend/src/style.css`、`frontend/src/env.d.ts`、`frontend/tsconfig.json`
+  - 配置/文档/测试：`.env.example`、`tests/test_chat_stream.py`、`docs/adr/0009-sse-chat-active-release.md`、`README.md`
+- 验收命令或操作：
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest tests/test_chat_stream.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest`
+  - `env UV_CACHE_DIR=.uv-cache uv run mypy`
+  - `env UV_CACHE_DIR=.uv-cache uv run ruff check backend/src/lingshu_nexus/chat backend/src/lingshu_nexus/api/routes/chat.py backend/src/lingshu_nexus/api/main.py tests/test_chat_stream.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run ruff format --check backend/src/lingshu_nexus/chat backend/src/lingshu_nexus/api/routes/chat.py tests/test_chat_stream.py`
+  - `npm --prefix frontend run build`
+  - 浏览器联调：API `http://127.0.0.1:8765/api/v1` + Vite `http://127.0.0.1:5175/`，验证 Skill 列表加载、发送问题和无 active release 的 SSE 错误提示。
+- 结果摘要：
+  - 新增会话、消息、反馈和 SSE 事件模型，运行期使用 in-memory ChatRepository；`0007_chat_sessions` 固化 PostgreSQL 表结构。
+  - 新增 `/api/v1/chat/sessions`、消息列表、`messages:stream` 和反馈接口；SSE 输出 `retrieval`、`text`、`citation`、`done`、`error` 事件。
+  - 流式回答复用 T-070 `SkillRegistryService`，只读取 indexed active release 的已发布证据；无 active release 或无证据时返回清晰限制提示。
+  - 前端默认进入证据聊天工作台，支持 Skill 选择、流式文本、引用侧栏、来源链接、active release/Skill 展示、失败提示和有用/无用/纠错反馈；开发环境 API 开启本地 Vite CORS 白名单。
+  - `tests/test_chat_stream.py` 覆盖 SSE happy path、反馈、无 active release 错误、candidate-only 不泄漏和迁移 apply/drop；全量 pytest 当前 50 个测试通过；全量 mypy 当前 50 个 source files 通过；前端 build 通过。
+- 未覆盖风险（若有）：
+  - 当前回答仍为确定性 Skill/Retrieval baseline，不接入 LLM 生成；后续若加入 chat LLM 必须走 provider adapter 和引用安全策略。
+  - ChatRepository 运行期仍是 in-memory，`0007_chat_sessions` 仅定义后续 PostgreSQL 持久化形态。
+  - 浏览器联调覆盖了本地无 active release 路径；带引用的流式展开由 `tests/test_chat_stream.py` 中的 active release fixture 覆盖，未在本地浏览器手工伪造 release 数据。
 
 ---
 

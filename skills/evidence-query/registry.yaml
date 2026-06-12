@@ -1,0 +1,16 @@
+skill_id: evidence-query
+version: "0.1.0"
+status: active
+scope: read_only
+minimum_role: researcher
+domain_ids:
+  - acupuncture
+server_allowed_tools:
+  - published_graph_search
+  - source_chunk_fetch
+supported_query_types:
+  - evidence_lookup
+  - parameter_summary
+  - safety_contraindication
+  - frequency_effect
+checksum: auto

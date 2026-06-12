@@ -30,6 +30,7 @@ class Settings:
     object_storage_bucket: str = "lingshu-documents"
     object_storage_local_path: str = "data/runtime/object-store"
     document_max_upload_bytes: int = 20 * 1024 * 1024
+    skill_registry_path: str = "skills"
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_username: str = "neo4j"
 
@@ -59,6 +60,7 @@ class Settings:
             document_max_upload_bytes=int(
                 _env("DOCUMENT_MAX_UPLOAD_BYTES", str(cls.document_max_upload_bytes))
             ),
+            skill_registry_path=_env("SKILL_REGISTRY_PATH", cls.skill_registry_path),
             neo4j_uri=_env("NEO4J_URI", cls.neo4j_uri),
             neo4j_username=_env("NEO4J_USERNAME", cls.neo4j_username),
         )

@@ -174,7 +174,7 @@ PDF/Markdown 资料导入
 | T-040 | MiMo provider 与候选知识抽取 | P0 | `[x]` | T-030 |
 | T-050 | 标准化、审核与发布版本 | P0 | `[x]` | T-040 |
 | T-060 | 图谱写入与检索 baseline | P0 | `[x]` | T-050 |
-| T-070 | Agent Skill Registry 与只读 Skill | P0 | `[ ]` | T-060 |
+| T-070 | Agent Skill Registry 与只读 Skill | P0 | `[x]` | T-060 |
 | T-080 | 流式问答前后端 | P0 | `[ ]` | T-060, T-070 |
 | T-090 | 管理面板 P0 能力 | P0 | `[ ]` | T-030, T-050, T-070 |
 | T-100 | 增量更新与 SourceConnector | P0/P1 | `[ ]` | T-030, T-050 |
@@ -555,19 +555,19 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-070 `[ ]` Agent Skill Registry 与首批只读 Skill
+### T-070 `[x]` Agent Skill Registry 与首批只读 Skill
 
 **目标：** 提供受控、可版本化的 Agent Skill 能力，支持用户指定或模型安全路由。
 
 **实施内容：**
 
-- [ ] 实现 Skill Registry 数据模型、版本、状态、scope、允许工具和执行日志。
-- [ ] 支持 `SKILL.md` 校验，至少检查 `name` 和 `description` frontmatter。
-- [ ] 实现平台侧 registry 元数据权限校验，不依赖提示词授权。
-- [ ] 创建 `evidence-query` Skill。
-- [ ] 创建 `literature-landscape` Skill。
-- [ ] 让首批只读 Skill 支持参数汇总、安全禁忌、频率效应、机制归纳、RCT 设计摘要和按时间列出文献等 tVNS/taVNS 问题类型。
-- [ ] 实现用户指定 Skill 与自动选择只读 Skill 两种路径。
+- [x] 实现 Skill Registry 数据模型、版本、状态、scope、允许工具和执行日志。
+- [x] 支持 `SKILL.md` 校验，至少检查 `name` 和 `description` frontmatter。
+- [x] 实现平台侧 registry 元数据权限校验，不依赖提示词授权。
+- [x] 创建 `evidence-query` Skill。
+- [x] 创建 `literature-landscape` Skill。
+- [x] 让首批只读 Skill 支持参数汇总、安全禁忌、频率效应、机制归纳、RCT 设计摘要和按时间列出文献等 tVNS/taVNS 问题类型。
+- [x] 实现用户指定 Skill 与自动选择只读 Skill 两种路径。
 
 **验收：**
 
@@ -575,6 +575,34 @@ PDF/Markdown 资料导入
 - 禁用或无权限 Skill 无法执行。
 - 自动路由不会选择后台写操作或未启用 Skill。
 - 每次执行记录 Skill 版本、调用方式、release 版本与引用信息。
+
+完成证据：
+- 修改/新增文件：
+  - 后端 Skill：`backend/src/lingshu_nexus/skills/`
+  - API/配置：`backend/src/lingshu_nexus/api/routes/skills.py`、`backend/src/lingshu_nexus/api/main.py`、`backend/src/lingshu_nexus/config/settings.py`、`.env.example`
+  - 迁移：`backend/migrations/0006_skill_registry.up.sql`、`backend/migrations/0006_skill_registry.down.sql`、`backend/migrations/README.md`
+  - 内置 Skill 包：`skills/evidence-query/`、`skills/literature-landscape/`
+  - 测试/文档：`tests/test_skill_registry.py`、`docs/adr/0008-agent-skill-registry-read-only.md`、`README.md`
+- 验收命令或操作：
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest tests/test_skill_registry.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest`
+  - `env UV_CACHE_DIR=.uv-cache uv run make test`
+  - `env UV_CACHE_DIR=.uv-cache uv run mypy`
+  - `env UV_CACHE_DIR=.uv-cache uv run ruff check backend/src/lingshu_nexus/skills backend/src/lingshu_nexus/api/routes/skills.py backend/src/lingshu_nexus/api/main.py backend/src/lingshu_nexus/config/settings.py tests/test_skill_registry.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run ruff format --check backend/src/lingshu_nexus/skills backend/src/lingshu_nexus/api/routes/skills.py tests/test_skill_registry.py`
+  - `python3 scripts/quality.py lint`
+  - `python3 scripts/quality.py format-check`
+  - `python3 scripts/quality.py typecheck`
+- 结果摘要：
+  - 新增 `SkillDefinition`、`SkillExecutionRecord`、in-memory `SkillRepository`、filesystem loader、`SKILL.md` frontmatter 校验、平台 `registry.yaml` 权限元数据校验和执行日志。
+  - 新增两个 active read-only Skill：`evidence-query` 与 `literature-landscape`，覆盖参数汇总、安全禁忌、频率效应、机制归纳、RCT 设计摘要、按时间列出文献和研究空白等 tVNS/taVNS 问题类型。
+  - 用户指定执行会校验 active/status/scope/role/server_allowed_tools；自动路由只在用户有权使用的 active read-only Skill 中选择，不会选择后台写操作或禁用 Skill。
+  - Skill 执行只调用 `RetrievalService` 读取 indexed active release 的已发布证据，并记录 Skill 版本、调用方式、release 版本和 citation keys。
+  - `tests/test_skill_registry.py` 6 个通过；全量 pytest 46 个通过；`uv run make test` 46 个 unittest 通过；全量 mypy 45 个 source files 通过；T-070 新增/修改 Python 文件定向 Ruff 与 format check 通过；裸环境质量脚本 lint/format/typecheck 通过。
+- 未覆盖风险（若有）：
+  - `0006_skill_registry` 已定义持久化表结构，但运行期仍使用 in-memory repository；PostgreSQL adapter 随后续持久化任务补齐。
+  - T-070 不实现 T-080 的网页流式对话 UI、LLM 自动生成答案或前端 Skill 选择器。
+  - `make quality` 在裸 `python3` 环境会因缺少 FastAPI 于 unittest 阶段失败；`env UV_CACHE_DIR=.uv-cache uv run make quality` 会触发 T-060 已记录的历史全量 Ruff 问题。T-070 相关文件已通过定向 Ruff、format、mypy 与全量测试。
 
 ---
 

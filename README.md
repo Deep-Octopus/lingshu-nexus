@@ -5,10 +5,11 @@ with the `acupuncture` domain and keeps tVNS/taVNS as a first professional
 sub-scenario, while avoiding patient-facing treatment advice and device control.
 
 This repository currently contains the T-000 engineering scaffold plus the
-T-010/T-040 foundations: versioned acupuncture/tVNS domain config, Evidence
+T-010/T-070 foundations: versioned acupuncture/tVNS domain config, Evidence
 Schema dataclasses, persistence records, SQL migrations, object storage and graph
 repository ports, document upload/parsing services, candidate extraction
-services, quality commands, tests, and ADRs.
+services, review/release governance, published graph retrieval, Agent Skill
+Registry baseline, quality commands, tests, and ADRs.
 
 ## Prerequisites
 
@@ -103,6 +104,24 @@ Unit and integration tests use `FakeLlmProvider`, so no real key is required for
 offline validation. Live MiMo extraction is intentionally blocked until real
 provider settings are supplied.
 
+### Agent Skill Registry
+
+T-070 adds a read-only Agent Skill Registry baseline:
+
+- `GET /api/v1/skills?domain_id=acupuncture`
+- `GET /api/v1/skills/{skill_id}?domain_id=acupuncture`
+- `POST /api/v1/skills/{skill_id}:validate?domain_id=acupuncture`
+- `POST /api/v1/skills/{skill_id}:enable|disable?domain_id=acupuncture`
+- `POST /api/v1/domains/{domain_id}/skills:execute`
+- `GET /api/v1/domains/{domain_id}/skills/execution-logs`
+
+Built-in Skill packages live under `skills/` and are loaded from
+`SKILL_REGISTRY_PATH`, which defaults to `skills`. The first two enabled Skills
+are `evidence-query` and `literature-landscape`. Platform authorization is
+enforced from `registry.yaml` metadata, not from prompt text. Chat execution only
+permits active `read_only` Skills over the active published release and records
+Skill version, route mode, release version, and citation keys in execution logs.
+
 ## Worker
 
 The worker entrypoint is a placeholder for future queue tasks:
@@ -145,9 +164,6 @@ structure.
 
 T-000 intentionally does not implement:
 
-- graph database writes
-- retrieval or GraphRAG
-- Skill execution
 - authentication or review workflows
 
 Those are handled by later TODO items in

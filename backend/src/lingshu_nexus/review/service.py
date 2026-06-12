@@ -365,6 +365,28 @@ class ReviewReleaseService:
     def active_release(self, *, domain_id: str) -> ReleaseRecord | None:
         return self._repository.active_release_record(domain_id=domain_id)
 
+    def record_audit_event(
+        self,
+        *,
+        domain_id: str,
+        actor_id: str,
+        action: str,
+        target_type: str,
+        target_id: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self._audit(
+            domain_id=domain_id,
+            actor_id=actor_id,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            metadata=metadata or {},
+        )
+
+    def list_audit_events(self, *, domain_id: str) -> tuple[AuditEvent, ...]:
+        return self._repository.list_audit_events(domain_id=domain_id)
+
     def list_review_batches(self, *, domain_id: str) -> tuple[ReviewBatch, ...]:
         return self._repository.list_batches(domain_id=domain_id)
 

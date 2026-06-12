@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
 from lingshu_domain.validation import SchemaValidationError, require_domain_id, require_text
+
+
+def utcnow() -> str:
+    return datetime.now(tz=UTC).replace(microsecond=0).isoformat()
 
 
 class DataLayer(StrEnum):
@@ -92,6 +97,7 @@ class AuditEvent:
     target_type: str
     target_id: str
     metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: str = field(default_factory=utcnow)
 
     def __post_init__(self) -> None:
         require_text(self.id, "AuditEvent.id")
@@ -119,4 +125,3 @@ class GraphSyncRecord:
         require_text(self.graph_backend, "GraphSyncRecord.graph_backend")
         if self.synced_assertion_count < 0:
             raise SchemaValidationError("GraphSyncRecord.synced_assertion_count must be >= 0")
-

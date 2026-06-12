@@ -36,6 +36,9 @@ class DocumentRepository(Protocol):
     def job_runs_for(self, *, domain_id: str, document_id: str) -> tuple[JobRun, ...]:
         """Return parse/reprocess attempts for one document."""
 
+    def list_job_runs(self, *, domain_id: str) -> tuple[JobRun, ...]:
+        """Return all document parse/reprocess job runs for one domain."""
+
 
 class InMemoryDocumentRepository:
     def __init__(self) -> None:
@@ -68,7 +71,8 @@ class InMemoryDocumentRepository:
     def list(self, *, domain_id: str) -> tuple[DocumentRecord, ...]:
         require_domain_id(domain_id)
         records = [
-            record for (record_domain_id, _), record in self._documents.items()
+            record
+            for (record_domain_id, _), record in self._documents.items()
             if record_domain_id == domain_id
         ]
         return tuple(sorted(records, key=lambda record: record.created_at))
@@ -89,6 +93,11 @@ class InMemoryDocumentRepository:
         require_text(document_id, "document_id")
         input_prefix = f"document:{document_id}:"
         return tuple(
-            job_run for job_run in self._job_runs
+            job_run
+            for job_run in self._job_runs
             if job_run.domain_id == domain_id and (job_run.input_ref or "").startswith(input_prefix)
         )
+
+    def list_job_runs(self, *, domain_id: str) -> tuple[JobRun, ...]:
+        require_domain_id(domain_id)
+        return tuple(job_run for job_run in self._job_runs if job_run.domain_id == domain_id)

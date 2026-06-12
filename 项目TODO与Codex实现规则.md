@@ -176,7 +176,7 @@ PDF/Markdown 资料导入
 | T-060 | 图谱写入与检索 baseline | P0 | `[x]` | T-050 |
 | T-070 | Agent Skill Registry 与只读 Skill | P0 | `[x]` | T-060 |
 | T-080 | 流式问答前后端 | P0 | `[x]` | T-060, T-070 |
-| T-090 | 管理面板 P0 能力 | P0 | `[ ]` | T-030, T-050, T-070 |
+| T-090 | 管理面板 P0 能力 | P0 | `[x]` | T-030, T-050, T-070 |
 | T-100 | 增量更新与 SourceConnector | P0/P1 | `[ ]` | T-030, T-050 |
 | T-110 | 权限、审计、安全与观测 | P0 | `[ ]` | T-020 起贯穿实施 |
 | T-120 | 评测、回归与 V1 发布验收 | P0 | `[ ]` | T-030 至 T-110 |
@@ -653,24 +653,52 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-090 `[ ]` 管理面板 P0 能力
+### T-090 `[x]` 管理面板 P0 能力
 
 **目标：** 让管理端能够操作文献、审核、版本、任务和 Skill，而非依赖脚本手工维护。
 
 **实施内容：**
 
-- [ ] 总览：文献数量、待审数量、active release、失败任务和调用成本摘要。
-- [ ] 文献库：上传、状态查看、详情/片段、失败重跑。
-- [ ] 审核工作台：候选命题、原文对照、批准/修改/驳回/冲突。
-- [ ] 图谱版本：release diff、激活、回滚。
-- [ ] Skill 管理：上传/查看、校验、启用/禁用、试运行与日志。
-- [ ] 数据源/任务页面占位并与 T-100 接通。
+- [x] 总览：文献数量、待审数量、active release、失败任务和调用成本摘要。
+- [x] 文献库：上传、状态查看、详情/片段、失败重跑。
+- [x] 审核工作台：候选命题、原文对照、批准/修改/驳回/冲突。
+- [x] 图谱版本：release diff、激活、回滚。
+- [x] Skill 管理：上传/查看、校验、启用/禁用、试运行与日志。
+- [x] 数据源/任务页面占位并与 T-100 接通。
 
 **验收：**
 
 - 可以仅通过页面完成“文献查看 -> 候选审核 -> 创建并激活 release -> 查看聊天引用”的核心路径。
 - 高风险操作有确认提示并产生审计事件。
 - 错误和失败任务可查看原因。
+
+完成证据：
+- 修改/新增文件：
+  - 后端 API：`backend/src/lingshu_nexus/api/routes/admin.py`、`backend/src/lingshu_nexus/api/main.py`
+  - 后端服务：`backend/src/lingshu_nexus/documents/repository.py`、`backend/src/lingshu_nexus/documents/service.py`、`backend/src/lingshu_nexus/review/service.py`、`backend/src/lingshu_nexus/skills/service.py`、`backend/src/lingshu_nexus/skills/__init__.py`、`backend/src/lingshu_nexus/persistence/models.py`
+  - 前端：`frontend/src/App.vue`、`frontend/src/style.css`
+  - 测试/文档：`tests/test_admin_panel.py`、`README.md`、`docs/adr/0010-management-panel-baseline.md`
+  - 相关格式清理：`backend/src/lingshu_nexus/documents/__init__.py`、`backend/src/lingshu_nexus/documents/models.py`、`backend/src/lingshu_nexus/documents/parsers.py`
+- 验收命令或操作：
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest tests/test_admin_panel.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest`
+  - `env UV_CACHE_DIR=.uv-cache uv run python -m unittest discover -s tests`
+  - `env UV_CACHE_DIR=.uv-cache uv run ruff check backend/src/lingshu_nexus/api/routes/admin.py backend/src/lingshu_nexus/api/main.py backend/src/lingshu_nexus/documents backend/src/lingshu_nexus/review/service.py backend/src/lingshu_nexus/persistence/models.py backend/src/lingshu_nexus/skills tests/test_admin_panel.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run ruff format --check backend/src/lingshu_nexus/api/routes/admin.py backend/src/lingshu_nexus/api/main.py backend/src/lingshu_nexus/documents backend/src/lingshu_nexus/review/service.py backend/src/lingshu_nexus/persistence/models.py backend/src/lingshu_nexus/skills tests/test_admin_panel.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run mypy`
+  - `npm --prefix frontend run build`
+  - `git diff --check`
+- 结果摘要：
+  - 新增 `/api/v1/admin/overview`、`/api/v1/admin/jobs`、`/api/v1/admin/audit-events`、`/api/v1/admin/skills:upload` 和带审计的 Skill 启用/禁用管理入口。
+  - 管理总览聚合文献状态、待审命题、active release、失败任务、Skill 执行摘要和模型用量边界；当前无模型用量仓库时明确返回 unavailable，不伪造 token 或费用。
+  - 文档管理支持上传、列表、详情/片段、失败原因和重跑；任务页展示解析/重跑 job，并把 SourceConnector 标为 T-100 接通占位。
+  - 审核与版本管理页面接入候选命题、批准/修改/驳回/冲突、release preview diff、创建、激活和回滚；高风险 release 操作有前端确认并使用已有审计事件。
+  - Skill 管理支持 package 上传、查看、校验、启用/禁用、试运行和日志查看；上传要求 `SKILL.md`、`registry.yaml`、`tests/cases.yaml` 同时通过现有 Skill 校验后才更新 registry，并记录 `skill.*` 审计事件。
+  - 前端首屏改为管理控制台，并保留 Chat 标签用于验证 active release 聊天引用；`tests/test_admin_panel.py` 覆盖管理总览/失败任务、Skill 上传/启停审计、审核发布激活与聊天引用闭环。
+- 未覆盖风险（若有）：
+  - 当前运行期仍使用多个 in-memory repository；持久化生产 adapter、完整 RBAC、结构化观测和更丰富审计归属留到 T-110。
+  - SourceConnector、schedule、外部增量同步真实契约留到 T-100，本次只提供任务页占位和解析/重跑 job 可视化。
+  - 管理面板没有伪造模型费用；模型调用成本需在后续接入候选抽取/LLM 调用日志仓库后汇总。
 
 ---
 

@@ -7,7 +7,11 @@ from lingshu_nexus.documents.models import (
     DocumentUploadResult,
     ParsedDocument,
 )
-from lingshu_nexus.documents.parsers import CompositeDocumentParser, MarkdownDocumentParser, PyPdfDocumentParser
+from lingshu_nexus.documents.parsers import (
+    CompositeDocumentParser,
+    MarkdownDocumentParser,
+    PyPdfDocumentParser,
+)
 from lingshu_nexus.documents.repository import InMemoryDocumentRepository
 from lingshu_nexus.documents.service import DocumentIngestService
 from lingshu_nexus.persistence.object_store import ObjectStore

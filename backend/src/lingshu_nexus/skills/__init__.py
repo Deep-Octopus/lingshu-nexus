@@ -16,6 +16,7 @@ from lingshu_nexus.skills.models import (
 )
 from lingshu_nexus.skills.repository import InMemorySkillRepository, SkillNotFoundError
 from lingshu_nexus.skills.service import (
+    SkillPackageValidationError,
     SkillPermissionError,
     SkillRegistryService,
     SkillRoutingError,
@@ -44,6 +45,7 @@ __all__ = [
     "SkillExecutionResult",
     "SkillExecutionStatus",
     "SkillNotFoundError",
+    "SkillPackageValidationError",
     "SkillPermissionError",
     "SkillRegistryService",
     "SkillRouteMode",

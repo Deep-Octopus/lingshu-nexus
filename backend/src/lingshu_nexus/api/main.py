@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from lingshu_domain import DEFAULT_DOMAIN_ID
+from lingshu_nexus.api.routes.admin import router as admin_router
 from lingshu_nexus.api.routes.chat import router as chat_router
 from lingshu_nexus.api.routes.documents import router as documents_router
 from lingshu_nexus.api.routes.retrieval import router as retrieval_router
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.state.chat_service = create_chat_service(
         skill_registry=app.state.skill_registry_service,
     )
+    app.include_router(admin_router)
     app.include_router(documents_router)
     app.include_router(review_router)
     app.include_router(retrieval_router)

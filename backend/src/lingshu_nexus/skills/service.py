@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import shutil
 from collections import Counter
 from dataclasses import replace
 from pathlib import Path
@@ -46,6 +48,7 @@ ROLE_RANK = {
     UserRole.REVIEWER: 2,
     UserRole.ADMIN: 3,
 }
+SAFE_SKILL_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
 
 
 class SkillPermissionError(PermissionError):
@@ -54,6 +57,10 @@ class SkillPermissionError(PermissionError):
 
 class SkillRoutingError(LookupError):
     """Raised when automatic routing cannot select a safe Skill."""
+
+
+class SkillPackageValidationError(ValueError):
+    """Raised when an uploaded Skill package cannot be validated."""
 
 
 class SkillRegistryService:
@@ -100,6 +107,48 @@ class SkillRegistryService:
             computed_checksum=computed_checksum,
             issues=issues,
         )
+
+    def upload_skill_package(
+        self,
+        *,
+        skill_id: str,
+        skill_md: str,
+        registry_yaml: str,
+        test_cases_yaml: str,
+        actor_role: UserRole,
+    ) -> SkillDefinition:
+        if ROLE_RANK[actor_role] < ROLE_RANK[UserRole.ADMIN]:
+            raise SkillPermissionError("Only admins can upload Skills")
+        safe_skill_id = _safe_skill_id(skill_id)
+        root = self._skills_root.resolve()
+        root.mkdir(parents=True, exist_ok=True)
+        incoming_dir = root / ".uploads" / f"{safe_skill_id}-{uuid4().hex}"
+        try:
+            incoming_dir.mkdir(parents=True, exist_ok=False)
+            (incoming_dir / "tests").mkdir(parents=True, exist_ok=False)
+            (incoming_dir / "SKILL.md").write_text(skill_md, encoding="utf-8")
+            (incoming_dir / "registry.yaml").write_text(registry_yaml, encoding="utf-8")
+            (incoming_dir / "tests" / "cases.yaml").write_text(
+                test_cases_yaml,
+                encoding="utf-8",
+            )
+            loaded, issues = validate_skill_package(incoming_dir)
+            if loaded is None or issues:
+                raise SkillPackageValidationError("; ".join(issues) or "Skill package is invalid")
+            if loaded.id != safe_skill_id:
+                raise SkillPackageValidationError(
+                    "skill_id must match SKILL.md name and registry.yaml skill_id"
+                )
+            destination = root / safe_skill_id
+            if destination.exists():
+                shutil.rmtree(destination)
+            shutil.move(str(incoming_dir), str(destination))
+            skill = load_skill_definition(destination)
+            self._repository.upsert_skill(skill)
+            return skill
+        finally:
+            if incoming_dir.exists():
+                shutil.rmtree(incoming_dir)
 
     def set_status(
         self,
@@ -325,6 +374,15 @@ def classify_skill_query_type(query: str) -> str:
     if _has_any(text, ("空白", "gap", "landscape", "分布", "主题")):
         return "research_gap"
     return "evidence_lookup"
+
+
+def _safe_skill_id(skill_id: str) -> str:
+    value = require_text(skill_id, "skill_id")
+    if not SAFE_SKILL_ID_PATTERN.fullmatch(value):
+        raise SkillPackageValidationError(
+            "skill_id must use 2-64 lowercase letters, digits, hyphens, or underscores"
+        )
+    return value
 
 
 def _render_answer(

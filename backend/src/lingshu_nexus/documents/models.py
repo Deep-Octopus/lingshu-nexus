@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from lingshu_domain import SourceChunk, SourceDocument, SourceQualityTier
@@ -12,7 +12,7 @@ from lingshu_nexus.persistence.object_store import ObjectRef
 
 
 def _utcnow() -> str:
-    return datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(tz=UTC).replace(microsecond=0).isoformat()
 
 
 class DocumentStatus(StrEnum):

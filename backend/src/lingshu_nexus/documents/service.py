@@ -18,8 +18,8 @@ from lingshu_nexus.documents.models import (
 )
 from lingshu_nexus.documents.parsers import (
     DocumentParseError,
-    DocumentParseRequest,
     DocumentParser,
+    DocumentParseRequest,
     UnsupportedDocumentTypeError,
     canonical_media_type,
 )
@@ -65,6 +65,9 @@ class DocumentIngestService:
             raise DocumentParseError("Document has no stored raw object to reprocess")
         content = self._object_store.get(record.raw_object_ref, domain_id=domain_id)
         return self._parse_and_store(record=record, content=content)
+
+    def list_job_runs(self, *, domain_id: str) -> tuple[JobRun, ...]:
+        return self._repository.list_job_runs(domain_id=domain_id)
 
     def _upload_one(self, *, domain_id: str, upload: DocumentUpload) -> DocumentUploadResult:
         if len(upload.content) > self._max_upload_bytes:

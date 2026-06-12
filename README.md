@@ -5,11 +5,12 @@ with the `acupuncture` domain and keeps tVNS/taVNS as a first professional
 sub-scenario, while avoiding patient-facing treatment advice and device control.
 
 This repository currently contains the T-000 engineering scaffold plus the
-T-010/T-080 foundations: versioned acupuncture/tVNS domain config, Evidence
+T-010/T-090 foundations: versioned acupuncture/tVNS domain config, Evidence
 Schema dataclasses, persistence records, SQL migrations, object storage and graph
 repository ports, document upload/parsing services, candidate extraction
 services, review/release governance, published graph retrieval, Agent Skill
-Registry baseline, SSE evidence chat, quality commands, tests, and ADRs.
+Registry baseline, SSE evidence chat, management panel baseline, quality
+commands, tests, and ADRs.
 
 ## Prerequisites
 
@@ -139,6 +140,27 @@ now opens directly to the evidence chat workspace with Skill selection, streamed
 answer text, citation cards, active release metadata, clear no-release/no-evidence
 states, and useful/not useful/correction feedback.
 
+### Management Panel API
+
+T-090 adds management endpoints and a Vue console for the P0 operating loop:
+
+- `GET /api/v1/admin/overview?domain_id=acupuncture`
+- `GET /api/v1/admin/jobs?domain_id=acupuncture`
+- `GET /api/v1/admin/audit-events?domain_id=acupuncture`
+- `POST /api/v1/admin/skills:upload`
+- `POST /api/v1/admin/skills/{skill_id}:enable|disable?domain_id=acupuncture`
+
+The console can upload and inspect documents, view parsed chunks and failed
+parse jobs, operate review decisions, preview/create/activate/rollback graph
+releases, upload/validate/enable/disable/run read-only Skill packages, inspect
+Skill logs, and verify published evidence through the chat view. Release and
+Skill management actions use confirmation prompts in the UI and write audit
+events through the server-side audit model.
+
+The overview reports model usage as unavailable when no model usage repository
+is mounted. It does not fabricate token or cost values. SourceConnector schedule
+and external data-source execution remain explicitly marked as pending T-100.
+
 ## Worker
 
 The worker entrypoint is a placeholder for future queue tasks:
@@ -151,14 +173,24 @@ Queue implementation and job models are deferred to later TODOs.
 
 ## Frontend
 
-Install Web dependencies and start the Vite dev server:
+Install Web dependencies, start the API in one terminal, then start the Vite dev
+server in another terminal:
 
 ```bash
 npm --prefix frontend install
+make api
+```
+
+```bash
 make web-dev
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:5173`. The first screen is the management console, with a
+Chat tab for active-release answer verification. In local development, Vite
+proxies `/api/v1` to `http://127.0.0.1:8000`, so the frontend can call the API
+without setting `VITE_API_BASE_URL`. If the API runs on a different port, start
+the frontend with `VITE_API_PROXY_TARGET=http://127.0.0.1:<port> make web-dev`,
+or set `VITE_API_BASE_URL` to the full API base URL.
 
 ## Quality Commands
 
@@ -179,9 +211,6 @@ structure.
 
 ## Scope Notes
 
-T-000 intentionally does not implement:
-
-- authentication or review workflows
-
-Those are handled by later TODO items in
+Authentication, persistent production repositories, full RBAC enforcement, and
+observability hardening are handled by later TODO items in
 `项目TODO与Codex实现规则.md`.

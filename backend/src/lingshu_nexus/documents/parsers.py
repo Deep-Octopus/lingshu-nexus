@@ -52,7 +52,9 @@ class MarkdownDocumentParser:
     def parse(self, request: DocumentParseRequest) -> ParsedDocument:
         text = _decode_markdown(request.content)
         paragraphs = _markdown_paragraphs(text)
-        title = request.title_hint or _markdown_title(text) or _title_from_filename(request.filename)
+        title = (
+            request.title_hint or _markdown_title(text) or _title_from_filename(request.filename)
+        )
         chunks: list[SourceChunk] = []
         for chunk_index, paragraph in enumerate(paragraphs):
             chunks.append(
@@ -89,7 +91,7 @@ class PyPdfDocumentParser:
             try:
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=DeprecationWarning, module="PyPDF2")
-                    pdf_reader_class = getattr(import_module("PyPDF2"), "PdfReader")
+                    pdf_reader_class = import_module("PyPDF2").PdfReader
             except ImportError:
                 return self._parse_with_minimal_fallback(request, exc)
 
@@ -149,9 +151,9 @@ class PyPdfDocumentParser:
                     )
                 )
         if not chunks:
-            raise DocumentParseError("PyPDF2 is not installed and fallback extracted no text") from (
-                import_error
-            )
+            raise DocumentParseError(
+                "PyPDF2 is not installed and fallback extracted no text"
+            ) from import_error
         title = request.title_hint or _title_from_filename(request.filename)
         return ParsedDocument(title=title, chunks=tuple(chunks), parser_version=self.parser_version)
 

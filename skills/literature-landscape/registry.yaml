@@ -1,0 +1,18 @@
+skill_id: literature-landscape
+version: "0.1.0"
+status: active
+scope: read_only
+minimum_role: researcher
+domain_ids:
+  - acupuncture
+server_allowed_tools:
+  - published_graph_search
+  - source_document_list
+  - graph_relationship_lookup
+supported_query_types:
+  - mechanism_summary
+  - rct_design_summary
+  - timeline_literature
+  - research_gap
+  - evidence_lookup
+checksum: auto

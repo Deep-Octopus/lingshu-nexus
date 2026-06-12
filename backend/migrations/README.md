@@ -24,3 +24,8 @@ T-060 adds `0005_graph_retrieval` for release-local published graph nodes,
 relationships, and retrieval index entries. These tables model derived
 `DataLayer.DERIVED` state from active/published releases; candidate assertions
 remain outside the user retrieval path.
+
+T-070 adds `0006_skill_registry` for versioned Agent Skill registry entries and
+execution logs. Platform permissions, scope, allowed server tools, and execution
+audit fields live outside `SKILL.md`; chat execution is restricted to active
+read-only Skills over published active releases.

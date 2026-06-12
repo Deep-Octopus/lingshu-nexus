@@ -5,11 +5,11 @@ with the `acupuncture` domain and keeps tVNS/taVNS as a first professional
 sub-scenario, while avoiding patient-facing treatment advice and device control.
 
 This repository currently contains the T-000 engineering scaffold plus the
-T-010/T-070 foundations: versioned acupuncture/tVNS domain config, Evidence
+T-010/T-080 foundations: versioned acupuncture/tVNS domain config, Evidence
 Schema dataclasses, persistence records, SQL migrations, object storage and graph
 repository ports, document upload/parsing services, candidate extraction
 services, review/release governance, published graph retrieval, Agent Skill
-Registry baseline, quality commands, tests, and ADRs.
+Registry baseline, SSE evidence chat, quality commands, tests, and ADRs.
 
 ## Prerequisites
 
@@ -121,6 +121,23 @@ are `evidence-query` and `literature-landscape`. Platform authorization is
 enforced from `registry.yaml` metadata, not from prompt text. Chat execution only
 permits active `read_only` Skills over the active published release and records
 Skill version, route mode, release version, and citation keys in execution logs.
+
+### Evidence Chat
+
+T-080 adds a web-ready chat baseline backed by Server-Sent Events:
+
+- `POST /api/v1/chat/sessions`
+- `GET /api/v1/chat/sessions?domain_id=acupuncture`
+- `GET /api/v1/chat/sessions/{session_id}/messages?domain_id=acupuncture`
+- `POST /api/v1/chat/sessions/{session_id}/messages:stream?domain_id=acupuncture`
+- `POST /api/v1/chat/sessions/{session_id}/messages/{message_id}:feedback?domain_id=acupuncture`
+
+The stream emits `retrieval`, `text`, `citation`, `done`, and `error` events.
+It reuses the read-only Skill Registry path, so chat can only answer from the
+indexed active release and cannot read candidate extraction output. The Vue app
+now opens directly to the evidence chat workspace with Skill selection, streamed
+answer text, citation cards, active release metadata, clear no-release/no-evidence
+states, and useful/not useful/correction feedback.
 
 ## Worker
 

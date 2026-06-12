@@ -1,6 +1,6 @@
 :root {
-  color: #1f2a24;
-  background: #f6f8f7;
+  color: #18211e;
+  background: #eef2f0;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -13,37 +13,259 @@ body {
   margin: 0;
 }
 
-.shell {
-  align-items: center;
-  display: flex;
-  min-height: 100vh;
-  padding: 32px;
+button,
+select,
+textarea {
+  font: inherit;
 }
 
-.panel {
-  max-width: 720px;
+button {
+  background: #176b87;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+button:disabled {
+  background: #8aa1a8;
+  cursor: not-allowed;
+}
+
+select,
+textarea {
+  border: 1px solid #c8d3cf;
+  border-radius: 8px;
+  color: #18211e;
+  width: 100%;
+}
+
+select {
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+textarea {
+  line-height: 1.45;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.workspace {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.chat-surface,
+.citation-panel {
+  background: #fbfcfb;
+  border: 1px solid #d8e0dd;
+  border-radius: 8px;
+}
+
+.chat-surface {
+  display: grid;
+  grid-template-rows: auto minmax(320px, 1fr) auto auto;
+  min-width: 0;
+}
+
+.topbar {
+  align-items: center;
+  border-bottom: 1px solid #e2e8e5;
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 20px;
 }
 
 .eyebrow {
-  color: #4d6a5b;
-  font-size: 14px;
-  font-weight: 700;
+  color: #6a4b26;
+  font-size: 12px;
+  font-weight: 800;
   letter-spacing: 0;
-  margin: 0 0 12px;
+  margin: 0 0 4px;
   text-transform: uppercase;
 }
 
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
 h1 {
-  font-size: 44px;
+  font-size: 24px;
   letter-spacing: 0;
-  line-height: 1.1;
-  margin: 0 0 16px;
+  line-height: 1.2;
+  margin-bottom: 0;
 }
 
-.notice {
-  color: #45534b;
-  font-size: 18px;
+h2 {
+  font-size: 16px;
+  letter-spacing: 0;
+  line-height: 1.3;
+  margin-bottom: 10px;
+}
+
+.status {
+  background: #e8f2f5;
+  border: 1px solid #b8d4dd;
+  border-radius: 999px;
+  color: #176b87;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.status.blocked {
+  background: #f7e7e3;
+  border-color: #e0aaa0;
+  color: #9a3412;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  padding: 18px 20px;
+}
+
+.empty-state {
+  align-self: center;
+  color: #40514b;
+  max-width: 520px;
+  padding-top: 80px;
+  text-align: center;
+}
+
+.message {
+  border: 1px solid #dbe4e0;
+  border-radius: 8px;
+  max-width: 860px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: #eaf4f1;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: #ffffff;
+}
+
+.message p {
   line-height: 1.55;
-  margin: 0;
+  margin-bottom: 0;
 }
 
+.message-meta {
+  color: #53655f;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.composer {
+  align-items: end;
+  border-top: 1px solid #e2e8e5;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 220px minmax(0, 1fr) auto;
+  padding: 16px 20px;
+}
+
+.composer label {
+  display: grid;
+  gap: 6px;
+}
+
+.composer span {
+  color: #53655f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.query-field {
+  min-width: 0;
+}
+
+.error {
+  background: #fff3ed;
+  border-top: 1px solid #f0c9bc;
+  color: #9a3412;
+  margin: 0;
+  padding: 12px 20px;
+}
+
+.citation-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow: auto;
+  padding: 18px;
+}
+
+.panel-section {
+  display: grid;
+  gap: 10px;
+}
+
+.citation {
+  border: 1px solid #d9dedb;
+  border-radius: 8px;
+  color: #1c3932;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  text-decoration: none;
+}
+
+.citation:hover {
+  border-color: #176b87;
+}
+
+.citation span,
+.citation small,
+.muted {
+  color: #5e6f69;
+}
+
+.citation small {
+  line-height: 1.4;
+}
+
+.feedback-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 920px) {
+  .workspace {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .composer {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+}

@@ -29,3 +29,8 @@ T-070 adds `0006_skill_registry` for versioned Agent Skill registry entries and
 execution logs. Platform permissions, scope, allowed server tools, and execution
 audit fields live outside `SKILL.md`; chat execution is restricted to active
 read-only Skills over published active releases.
+
+T-080 adds `0007_chat_sessions` for chat sessions, persisted user/assistant
+messages, SSE answer metadata, citation keys, and feedback records. The runtime
+adapter remains in-memory for the V1 baseline while the migration fixes the
+future PostgreSQL shape.

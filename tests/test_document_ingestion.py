@@ -284,6 +284,27 @@ class DocumentIngestionTestCase(unittest.TestCase):
         detail_payload = detail_response.json()
         self.assertEqual(detail_payload["chunks"][0]["locator"]["heading"], "API fixture")
 
+    def test_fastapi_batch_upload_route_alias_without_colon(self) -> None:
+        service, _, _ = _service()
+        app = create_app()
+        app.state.document_service = service
+        client = TestClient(app)
+
+        upload_response = client.post(
+            "/api/v1/domains/acupuncture/documents/batch-upload",
+            files={
+                "files": (
+                    "api-alias-fixture.md",
+                    b"# API alias fixture\n\nA routed upload can avoid colon action paths.",
+                    "text/markdown",
+                )
+            },
+        )
+
+        self.assertEqual(upload_response.status_code, 200)
+        upload_payload = upload_response.json()
+        self.assertEqual(upload_payload["results"][0]["status"], "PARSED")
+
 
 def _service(
     max_upload_bytes: int = 1024 * 1024,

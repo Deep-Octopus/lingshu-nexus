@@ -18,6 +18,7 @@ def get_document_service(request: Request) -> DocumentIngestService:
     return cast(DocumentIngestService, request.app.state.document_service)
 
 
+@router.post("/domains/{domain_id}/documents/batch-upload")
 @router.post("/domains/{domain_id}/documents:batch-upload")
 async def batch_upload_documents(
     domain_id: str,

@@ -78,7 +78,8 @@ class AdminPanelTestCase(unittest.TestCase):
         failed_jobs = [job for job in jobs_payload["jobs"] if job["status"] == "failed"]
         self.assertEqual(len(failed_jobs), 1)
         self.assertIn("PDF parser", failed_jobs[0]["error"])
-        self.assertEqual(jobs_payload["source_connector"]["status"], "pending_t100")
+        self.assertEqual(jobs_payload["source_connector"]["status"], "ready")
+        self.assertEqual(jobs_payload["source_connector"]["runs_total"], 0)
 
     def test_admin_skill_status_changes_require_admin_and_write_audit(self) -> None:
         client, _assertion_id = _client_with_review_fixture()

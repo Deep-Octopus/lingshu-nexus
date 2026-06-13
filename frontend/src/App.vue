@@ -52,6 +52,47 @@ type DocumentDetail = DocumentSummary & {
   source_uri?: string | null;
 };
 
+type UploadResult = {
+  filename: string;
+  status: string;
+  document_id?: string | null;
+  candidate_run_id?: string | null;
+  review_batch_id?: string | null;
+  message?: string | null;
+};
+
+type SourceConnector = {
+  id: string;
+  name: string;
+  connector_type: string;
+  enabled: boolean;
+  schedule: {
+    enabled: boolean;
+    interval_seconds?: number | null;
+    cron?: string | null;
+  };
+};
+
+type SourceRun = {
+  id: string;
+  source_id: string;
+  status: string;
+  attempt: number;
+  duplicate_count: number;
+  failed_artifact_count: number;
+  review_batch_ids: string[];
+  impact_summary: {
+    potential_conflict_count?: number;
+  };
+  error?: string | null;
+  created_at: string;
+};
+
+type SourceSyncResponse = {
+  run: SourceRun;
+  artifacts: UploadResult[];
+};
+
 type ReviewAssertion = {
   id: string;
   subject: EvidenceTerm;
@@ -99,6 +140,12 @@ type AdminOverview = {
   review_status_counts: Record<string, number>;
   active_release?: { id: string; version: string; assertion_count: number } | null;
   failed_jobs_count: number;
+  source_sync_summary: {
+    sources_total: number;
+    runs_total: number;
+    failed: number;
+    duplicates_skipped: number;
+  };
   skill_execution_summary: { total: number; failed: number };
   model_usage_summary: {
     records_available: boolean;
@@ -161,9 +208,13 @@ const activeView = ref<ViewMode>("admin");
 const adminStatus = ref("Loading");
 const adminError = ref("");
 const adminNotice = ref("");
+const uploadRequestDebug = ref("");
+const uploadResults = ref<UploadResult[]>([]);
 const overview = ref<AdminOverview | null>(null);
 const documents = ref<DocumentSummary[]>([]);
 const selectedDocument = ref<DocumentDetail | null>(null);
+const sources = ref<SourceConnector[]>([]);
+const sourceRuns = ref<SourceRun[]>([]);
 const reviewAssertions = ref<ReviewAssertion[]>([]);
 const selectedAssertionId = ref("");
 const reviewReason = ref("Source locator verified.");
@@ -257,6 +308,8 @@ async function refreshAdmin() {
       loadReviewAssertions(),
       loadReleases(),
       loadJobs(),
+      loadSources(),
+      loadSourceRuns(),
       loadAuditEvents(),
     ]);
     syncReleaseSelection();
@@ -295,15 +348,46 @@ async function uploadDocuments(event: Event) {
   for (const file of Array.from(input.files)) {
     formData.append("files", file);
   }
-  adminStatus.value = "Uploading";
-  const response = await fetch(`${apiBase}/domains/${domainId}/documents:batch-upload`, {
-    method: "POST",
-    body: formData,
-  });
-  await readJson(response, "Document upload");
-  input.value = "";
-  adminNotice.value = "Upload processed.";
-  await refreshAdmin();
+  adminError.value = "";
+  adminNotice.value = "";
+  uploadResults.value = [];
+  formData.append("actor_id", adminActorId);
+  const endpoint = `${apiBase}/domains/${domainId}/sources:manual-sync`;
+  uploadRequestDebug.value = `POST ${endpoint}`;
+  adminStatus.value = `Uploading ${input.files.length} file${input.files.length > 1 ? "s" : ""}`;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  try {
+    console.info("LingShu document upload", {
+      endpoint,
+      filenames: Array.from(input.files).map((file) => file.name),
+    });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+    const payload = await readJson<SourceSyncResponse>(response, "Manual source sync");
+    uploadResults.value = payload.artifacts;
+    const reviewBatchCount = payload.run.review_batch_ids.length;
+    const failedCount = payload.run.failed_artifact_count;
+    adminNotice.value = `Source sync ${payload.run.status}: ${reviewBatchCount} review batch${reviewBatchCount === 1 ? "" : "es"}, ${failedCount} failed artifact${failedCount === 1 ? "" : "s"}.`;
+    await refreshAdmin();
+    const firstDocumentId = payload.artifacts.find((result) => result.document_id)?.document_id;
+    if (firstDocumentId) {
+      await selectDocument(firstDocumentId);
+    }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      adminError.value = `Document upload timed out before the API responded: ${endpoint}`;
+    } else {
+      adminError.value = error instanceof Error ? error.message : "Document upload failed";
+    }
+    adminStatus.value = "Blocked";
+  } finally {
+    window.clearTimeout(timeoutId);
+    input.value = "";
+  }
 }
 
 async function reprocessDocument(documentId: string) {
@@ -472,6 +556,32 @@ async function loadJobs() {
   }>(response, "Admin jobs");
   jobs.value = payload.jobs;
   sourceConnectorStatus.value = `${payload.source_connector.status}: ${payload.source_connector.message}`;
+}
+
+async function loadSources() {
+  const response = await fetch(`${apiBase}/sources?domain_id=${domainId}`);
+  const payload = await readJson<{ sources: SourceConnector[] }>(response, "Source list");
+  sources.value = payload.sources;
+}
+
+async function loadSourceRuns() {
+  const response = await fetch(`${apiBase}/source-runs?domain_id=${domainId}`);
+  const payload = await readJson<{ runs: SourceRun[] }>(response, "Source runs");
+  sourceRuns.value = payload.runs.slice().reverse();
+}
+
+async function runSource(sourceId: string) {
+  if (!window.confirm(`Run SourceConnector ${sourceId}?`)) {
+    return;
+  }
+  const response = await fetch(`${apiBase}/sources/${sourceId}:sync?domain_id=${domainId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor_id: adminActorId }),
+  });
+  const payload = await readJson<SourceSyncResponse>(response, "Source sync");
+  adminNotice.value = `Source sync ${payload.run.status}: ${payload.run.review_batch_ids.length} review batches.`;
+  await Promise.all([loadJobs(), loadSources(), loadSourceRuns(), loadReviewAssertions(), loadAuditEvents()]);
 }
 
 async function loadAuditEvents() {
@@ -819,6 +929,22 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
 
       <p class="error" v-if="adminError">{{ adminError }}</p>
       <p class="success" v-if="adminNotice">{{ adminNotice }}</p>
+      <p class="request-debug" v-if="uploadRequestDebug">{{ uploadRequestDebug }}</p>
+      <section v-if="uploadResults.length > 0" class="upload-results" aria-label="Upload results">
+        <article v-for="result in uploadResults" :key="`${result.filename}-${result.document_id || 'none'}`">
+          <span>
+            <strong>{{ result.filename }}</strong>
+            <small>
+              {{ result.status }}
+              <template v-if="result.document_id"> · doc {{ result.document_id }}</template>
+              <template v-if="result.candidate_run_id"> · candidate {{ result.candidate_run_id }}</template>
+              <template v-if="result.review_batch_id"> · review {{ result.review_batch_id }}</template>
+              <template v-if="result.message"> · {{ result.message }}</template>
+            </small>
+          </span>
+          <b :class="['pill', statusClass(result.status)]">{{ result.status }}</b>
+        </article>
+      </section>
 
       <section class="metric-grid" v-if="overview">
         <article>
@@ -839,7 +965,10 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
         <article>
           <span>Failed Jobs</span>
           <strong>{{ overview.failed_jobs_count }}</strong>
-          <small>{{ overview.model_usage_summary.note }}</small>
+          <small>
+            {{ overview.source_sync_summary.runs_total }} source runs ·
+            {{ overview.source_sync_summary.duplicates_skipped }} duplicates skipped
+          </small>
         </article>
       </section>
 
@@ -1092,6 +1221,37 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
             <span>{{ failedJobs.length }} failed</span>
           </div>
           <p class="muted">{{ sourceConnectorStatus }}</p>
+          <div class="data-source-list">
+            <article v-for="source in sources" :key="source.id" class="source-row">
+              <span>
+                <strong>{{ source.name }}</strong>
+                <small>
+                  {{ source.connector_type }} · {{ source.enabled ? "enabled" : "disabled" }}
+                  <template v-if="source.schedule.enabled"> · scheduled</template>
+                </small>
+              </span>
+              <button
+                v-if="source.connector_type !== 'manual_upload'"
+                type="button"
+                class="secondary compact"
+                @click="runSource(source.id)"
+              >
+                Sync
+              </button>
+            </article>
+          </div>
+          <article v-for="run in sourceRuns" :key="run.id" class="job-row">
+            <b :class="['pill', statusClass(run.status)]">{{ run.status }}</b>
+            <span>
+              source {{ run.source_id }} · attempt {{ run.attempt }} ·
+              {{ run.review_batch_ids.length }} review batches
+            </span>
+            <small v-if="run.error">{{ run.error }}</small>
+            <small v-else>
+              {{ run.duplicate_count }} duplicates ·
+              {{ run.impact_summary.potential_conflict_count || 0 }} conflict hints
+            </small>
+          </article>
           <article v-for="job in jobs" :key="job.id" class="job-row">
             <b :class="['pill', statusClass(job.status)]">{{ job.status }}</b>
             <span>{{ job.job_type }} · {{ job.input_ref }}</span>

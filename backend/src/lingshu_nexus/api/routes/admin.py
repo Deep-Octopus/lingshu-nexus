@@ -22,6 +22,7 @@ from lingshu_nexus.skills import (
     SkillStatus,
     UserRole,
 )
+from lingshu_nexus.sources import SourceSyncRun, SourceUpdateService
 
 router = APIRouter(prefix="/api/v1", tags=["admin"])
 
@@ -38,17 +39,23 @@ def get_skill_service(request: Request) -> SkillRegistryService:
     return cast(SkillRegistryService, request.app.state.skill_registry_service)
 
 
+def get_source_service(request: Request) -> SourceUpdateService:
+    return cast(SourceUpdateService, request.app.state.source_update_service)
+
+
 @router.get("/admin/overview")
 async def admin_overview(
     document_service: Annotated[DocumentIngestService, Depends(get_document_service)],
     review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     skill_service: Annotated[SkillRegistryService, Depends(get_skill_service)],
+    source_service: Annotated[SourceUpdateService, Depends(get_source_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
     documents = document_service.list_documents(domain_id=domain_id)
     assertions = review_service.list_assertions(domain_id=domain_id)
     jobs = document_service.list_job_runs(domain_id=domain_id)
     skill_logs = skill_service.list_execution_records(domain_id=domain_id)
+    source_runs = source_service.list_runs(domain_id=domain_id)
     active_release = review_service.active_release(domain_id=domain_id)
     return {
         "domain_id": domain_id,
@@ -63,6 +70,12 @@ async def admin_overview(
         ),
         "active_release": _release_summary(active_release),
         "failed_jobs_count": sum(job.status is JobStatus.FAILED for job in jobs),
+        "source_sync_summary": {
+            "sources_total": len(source_service.list_sources(domain_id=domain_id)),
+            "runs_total": len(source_runs),
+            "failed": sum(run.status is JobStatus.FAILED for run in source_runs),
+            "duplicates_skipped": sum(run.duplicate_count for run in source_runs),
+        },
         "skill_execution_summary": {
             "total": len(skill_logs),
             "failed": sum(log.status is SkillExecutionStatus.FAILED for log in skill_logs),
@@ -79,15 +92,21 @@ async def admin_overview(
 @router.get("/admin/jobs")
 async def admin_jobs(
     document_service: Annotated[DocumentIngestService, Depends(get_document_service)],
+    source_service: Annotated[SourceUpdateService, Depends(get_source_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
     jobs = document_service.list_job_runs(domain_id=domain_id)
+    source_runs = source_service.list_runs(domain_id=domain_id)
     return {
         "domain_id": domain_id,
-        "jobs": [_job_payload(job) for job in jobs],
+        "jobs": [_job_payload(job) for job in jobs]
+        + [_source_run_as_job_payload(run) for run in source_runs],
         "source_connector": {
-            "status": "pending_t100",
-            "message": "T-100 接入 SourceConnector 前，仅展示文档解析/重跑任务。",
+            "status": "ready",
+            "message": "SourceConnector 已接入；真实外部 adapter 仍需接口样例。",
+            "sources_total": len(source_service.list_sources(domain_id=domain_id)),
+            "runs_total": len(source_runs),
+            "failed_runs": sum(run.status is JobStatus.FAILED for run in source_runs),
         },
     }
 
@@ -235,6 +254,18 @@ def _job_payload(job: JobRun) -> dict[str, object]:
         "input_ref": job.input_ref,
         "output_ref": job.output_ref,
         "error": job.error,
+    }
+
+
+def _source_run_as_job_payload(run: SourceSyncRun) -> dict[str, object]:
+    return {
+        "id": run.id,
+        "domain_id": run.domain_id,
+        "job_type": "source_sync",
+        "status": run.status.value,
+        "input_ref": f"source:{run.source_id}:attempt:{run.attempt}",
+        "output_ref": ",".join(run.review_batch_ids) if run.review_batch_ids else None,
+        "error": run.error,
     }
 
 

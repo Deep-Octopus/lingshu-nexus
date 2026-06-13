@@ -190,6 +190,31 @@ is mounted. It does not fabricate token or cost values. SourceConnector schedule
 metadata and offline/generic execution are present; true external adapters remain
 blocked until real interface samples are available.
 
+### Security, Audit, and Observability Baseline
+
+T-110 adds a simplified V1 actor model for internal research use. Requests pass
+`actor_id` and `actor_role` (`read_only`, `researcher`, `reviewer`, or `admin`);
+the server enforces role checks before protected write actions. Researchers can
+upload/reprocess material, reviewers can review assertions and create release
+snapshots, and admins are required to activate/rollback releases, manage data
+sources, and enable/disable Skills.
+
+Audit events now cover document upload/reprocess, assertion review, release
+create/activate/rollback, Skill upload/enable/disable/execute, SourceConnector
+configuration/sync, chat answer completion/failure, and chat feedback. Chat audit
+records the actor, active release id/version, Skill execution id, citation keys,
+query length, and query SHA-256 instead of the full query text.
+
+Operational endpoints:
+
+- `GET /api/v1/admin/config-status`
+- `GET /api/v1/admin/observability-events?domain_id=acupuncture`
+
+Configuration status reports only booleans and non-secret identifiers. Source
+config responses mask secret references such as `env:SOURCE_TOKEN`, and inline
+secret-looking config keys are rejected. Structured observability events are
+kept in memory for V1 and sanitize metadata before logging or returning it.
+
 ## Worker
 
 The worker entrypoint is a placeholder for future queue tasks:
@@ -240,6 +265,7 @@ structure.
 
 ## Scope Notes
 
-Authentication, persistent production repositories, full RBAC enforcement, and
-observability hardening are handled by later TODO items in
-`项目TODO与Codex实现规则.md`.
+The current security layer is a V1 internal baseline, not a password or SSO
+implementation. Production identity, durable audit repositories, and external
+telemetry sinks can replace the in-memory adapters later without changing the
+permission matrix or event shapes.

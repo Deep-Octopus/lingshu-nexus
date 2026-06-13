@@ -215,6 +215,84 @@ class AdminPanelTestCase(unittest.TestCase):
         self.assertIn("release.created", actions)
         self.assertIn("release.activated", actions)
 
+    def test_t110_rbac_chat_audit_config_status_and_observability(self) -> None:
+        client, assertion_id = _client_with_review_fixture()
+
+        forbidden_review = client.post(
+            f"/api/v1/review-assertions/{assertion_id}:approve",
+            params={"domain_id": "acupuncture"},
+            json={
+                "reviewer": "researcher-ui",
+                "actor_role": "researcher",
+                "reason": "Attempted review without reviewer role.",
+            },
+        )
+        self.assertEqual(forbidden_review.status_code, 403)
+
+        approved = client.post(
+            f"/api/v1/review-assertions/{assertion_id}:approve",
+            params={"domain_id": "acupuncture"},
+            json={
+                "reviewer": "reviewer-ui",
+                "actor_role": "reviewer",
+                "reason": "Source locator verified.",
+            },
+        )
+        self.assertEqual(approved.status_code, 200)
+
+        release = client.post(
+            "/api/v1/domains/acupuncture/releases",
+            json={
+                "version": "v-t110.1",
+                "assertion_ids": [assertion_id],
+                "released_by": "reviewer-ui",
+                "actor_role": "reviewer",
+            },
+        )
+        self.assertEqual(release.status_code, 200)
+        release_id = release.json()["id"]
+
+        forbidden_activate = client.post(
+            f"/api/v1/domains/acupuncture/releases/{release_id}:activate",
+            json={"actor_id": "researcher-ui", "actor_role": "researcher"},
+        )
+        self.assertEqual(forbidden_activate.status_code, 403)
+
+        activated = client.post(
+            f"/api/v1/domains/acupuncture/releases/{release_id}:activate",
+            json={"actor_id": "admin-ui", "actor_role": "admin"},
+        )
+        self.assertEqual(activated.status_code, 200)
+
+        query = "Cymba Conchae frequency 25 Hz PSQI parameter"
+        session_id = _create_session(client)
+        events = _stream_events(client, session_id=session_id, query=query)
+        self.assertEqual(events[-1]["event"], "done")
+
+        audit = client.get("/api/v1/admin/audit-events", params={"domain_id": "acupuncture"})
+        audit_events = audit.json()["audit_events"]
+        completed = [event for event in audit_events if event["action"] == "chat.answer_completed"]
+        self.assertEqual(len(completed), 1)
+        metadata = completed[0]["metadata"]
+        self.assertEqual(metadata["actor_role"], "researcher")
+        self.assertEqual(metadata["release_version"], "v-t110.1")
+        self.assertEqual(len(metadata["query_sha256"]), 64)
+        self.assertNotIn(query, json.dumps(metadata, ensure_ascii=False))
+
+        observations = client.get(
+            "/api/v1/admin/observability-events",
+            params={"domain_id": "acupuncture"},
+        )
+        self.assertEqual(observations.status_code, 200)
+        event_types = [event["event_type"] for event in observations.json()["events"]]
+        self.assertIn("chat.answer", event_types)
+
+        config_status = client.get("/api/v1/admin/config-status")
+        self.assertEqual(config_status.status_code, 200)
+        config_body = json.dumps(config_status.json(), ensure_ascii=False)
+        self.assertNotIn("change-me-postgres-password", config_body)
+        self.assertNotIn("MIMO_API_KEY", config_body)
+
 
 def _client_with_review_fixture() -> tuple[TestClient, str]:
     review_service = ReviewReleaseService(

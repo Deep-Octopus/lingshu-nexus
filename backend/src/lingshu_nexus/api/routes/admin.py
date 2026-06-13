@@ -8,7 +8,9 @@ from typing import Annotated, cast
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
 from lingshu_domain import DEFAULT_DOMAIN_ID, ReviewStatus
+from lingshu_nexus.config.settings import Settings, get_settings
 from lingshu_nexus.documents import DocumentIngestService
+from lingshu_nexus.observability import ObservabilityRecorder, observation_payload
 from lingshu_nexus.persistence.models import AuditEvent, JobRun, JobStatus
 from lingshu_nexus.review import ReviewReleaseService
 from lingshu_nexus.review.models import ReleaseRecord
@@ -43,12 +45,17 @@ def get_source_service(request: Request) -> SourceUpdateService:
     return cast(SourceUpdateService, request.app.state.source_update_service)
 
 
+def get_observability(request: Request) -> ObservabilityRecorder:
+    return cast(ObservabilityRecorder, request.app.state.observability)
+
+
 @router.get("/admin/overview")
 async def admin_overview(
     document_service: Annotated[DocumentIngestService, Depends(get_document_service)],
     review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     skill_service: Annotated[SkillRegistryService, Depends(get_skill_service)],
     source_service: Annotated[SourceUpdateService, Depends(get_source_service)],
+    observability: Annotated[ObservabilityRecorder, Depends(get_observability)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
     documents = document_service.list_documents(domain_id=domain_id)
@@ -57,6 +64,7 @@ async def admin_overview(
     skill_logs = skill_service.list_execution_records(domain_id=domain_id)
     source_runs = source_service.list_runs(domain_id=domain_id)
     active_release = review_service.active_release(domain_id=domain_id)
+    observations = observability.list_events(domain_id=domain_id)
     return {
         "domain_id": domain_id,
         "documents_total": len(documents),
@@ -85,6 +93,10 @@ async def admin_overview(
             "total_tokens": None,
             "estimated_cost": None,
             "note": "当前运行期未挂载模型用量仓库；不伪造调用成本。",
+        },
+        "observability_summary": {
+            "events_total": len(observations),
+            "failed": sum(event.status.value == "failed" for event in observations),
         },
     }
 
@@ -279,6 +291,51 @@ def _audit_payload(event: AuditEvent) -> dict[str, object]:
         "target_id": event.target_id,
         "metadata": event.metadata,
         "created_at": event.created_at,
+    }
+
+
+@router.get("/admin/observability-events")
+async def admin_observability_events(
+    observability: Annotated[ObservabilityRecorder, Depends(get_observability)],
+    domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
+) -> dict[str, object]:
+    return {
+        "domain_id": domain_id,
+        "events": [
+            observation_payload(event) for event in observability.list_events(domain_id=domain_id)
+        ],
+    }
+
+
+@router.get("/admin/config-status")
+async def admin_config_status(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    extraction_model = settings.mimo_extraction_model_id or settings.mimo_model_id
+    return {
+        "app": {
+            "environment": settings.app_env,
+            "default_domain_id": settings.default_domain_id,
+        },
+        "mimo": {
+            "base_url_configured": bool(settings.mimo_base_url)
+            and "example.invalid" not in settings.mimo_base_url,
+            "api_key_configured": bool(settings.mimo_api_key)
+            and not settings.mimo_api_key.startswith("replace-with"),
+            "model_configured": bool(extraction_model)
+            and not extraction_model.startswith("replace-with"),
+            "model_id": None if extraction_model.startswith("replace-with") else extraction_model,
+        },
+        "storage": {
+            "database_url_configured": bool(settings.database_url),
+            "redis_url_configured": bool(settings.redis_url),
+            "object_storage_configured": bool(settings.object_storage_local_path),
+            "neo4j_uri_configured": bool(settings.neo4j_uri),
+        },
+        "secret_policy": (
+            "Secrets are injected through environment or future secret references; "
+            "API responses do not return secret values."
+        ),
     }
 
 

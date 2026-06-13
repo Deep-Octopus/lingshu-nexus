@@ -13,6 +13,7 @@ from lingshu_domain import Direction, EvidenceAssertion
 from lingshu_domain.validation import require_text
 from lingshu_nexus.documents import DocumentIngestService, DocumentStatus, DocumentUpload
 from lingshu_nexus.extraction import CandidateExtractionService
+from lingshu_nexus.observability import ObservabilityRecorder, ObservationStatus
 from lingshu_nexus.persistence.models import DataLayer, JobStatus
 from lingshu_nexus.persistence.object_store import ObjectRef, ObjectStore
 from lingshu_nexus.review import ReviewReleaseService, ReviewWorkflowError
@@ -53,6 +54,7 @@ class SourceUpdateService:
         extraction_service: CandidateExtractionService,
         review_service: ReviewReleaseService,
         connectors: Mapping[SourceConnectorType, SourceConnector],
+        observability: ObservabilityRecorder | None = None,
     ) -> None:
         self._repository = repository
         self._object_store = object_store
@@ -60,6 +62,7 @@ class SourceUpdateService:
         self._extraction_service = extraction_service
         self._review_service = review_service
         self._connectors = dict(connectors)
+        self._observability = observability
 
     def upsert_source(
         self,
@@ -73,6 +76,7 @@ class SourceUpdateService:
         enabled: bool = True,
         max_attempts: int = 3,
         actor_id: str = "system",
+        actor_role: str | None = None,
     ) -> SourceConnectorConfig:
         config_record = SourceConnectorConfig(
             id=source_id,
@@ -95,11 +99,18 @@ class SourceUpdateService:
             metadata={
                 "connector_type": connector_type.value,
                 "schedule_enabled": config_record.schedule.enabled,
+                "actor_role": actor_role,
             },
         )
         return config_record
 
-    def ensure_manual_source(self, *, domain_id: str, actor_id: str) -> SourceConnectorConfig:
+    def ensure_manual_source(
+        self,
+        *,
+        domain_id: str,
+        actor_id: str,
+        actor_role: str | None = None,
+    ) -> SourceConnectorConfig:
         try:
             return self._repository.get_config(domain_id=domain_id, source_id="manual-upload")
         except SourceConfigNotFoundError:
@@ -110,6 +121,7 @@ class SourceUpdateService:
                 connector_type=SourceConnectorType.MANUAL_UPLOAD,
                 config={"mode": "files"},
                 actor_id=actor_id,
+                actor_role=actor_role,
             )
 
     def list_sources(self, *, domain_id: str) -> tuple[SourceConnectorConfig, ...]:
@@ -195,8 +207,13 @@ class SourceUpdateService:
         domain_id: str,
         actor_id: str,
         uploads: tuple[DocumentUpload, ...],
+        actor_role: str | None = None,
     ) -> SourceSyncResult:
-        config = self.ensure_manual_source(domain_id=domain_id, actor_id=actor_id)
+        config = self.ensure_manual_source(
+            domain_id=domain_id,
+            actor_id=actor_id,
+            actor_role=actor_role,
+        )
         artifacts = tuple(
             SourceArtifact(
                 id=f"manual_{uuid4().hex}",
@@ -528,6 +545,13 @@ class SourceUpdateService:
                 "failed_artifact_count": failed_count,
             },
         )
+        self._record_source_task_observation(
+            run=run,
+            status=ObservationStatus.SUCCEEDED
+            if status is JobStatus.SUCCEEDED
+            else ObservationStatus.FAILED,
+            artifact_count=len(artifact_records),
+        )
         return SourceSyncResult(run=run, artifact_records=tuple(artifact_records))
 
     def _record_failed_run(
@@ -577,6 +601,12 @@ class SourceUpdateService:
             target_type="source_connector",
             target_id=config.id,
             metadata={"run_id": run.id, "error": error},
+        )
+        self._record_source_task_observation(
+            run=run,
+            status=ObservationStatus.FAILED,
+            artifact_count=1,
+            error=error,
         )
         return SourceSyncResult(run=run, artifact_records=(artifact_record,))
 
@@ -632,6 +662,39 @@ class SourceUpdateService:
         if active is None:
             return ()
         return active.assertions
+
+    def _record_source_task_observation(
+        self,
+        *,
+        run: SourceSyncRun,
+        status: ObservationStatus,
+        artifact_count: int,
+        error: str | None = None,
+    ) -> None:
+        if self._observability is None:
+            return
+        self._observability.record(
+            event_type="task.source_sync",
+            status=status,
+            domain_id=run.domain_id,
+            actor_id=run.actor_id,
+            target_type="source_connector",
+            target_id=run.source_id,
+            trace_id=run.id,
+            metrics={
+                "attempt": run.attempt,
+                "artifact_count": artifact_count,
+                "document_count": len(run.document_ids),
+                "review_batch_count": len(run.review_batch_ids),
+                "duplicate_count": run.duplicate_count,
+                "failed_artifact_count": run.failed_artifact_count,
+            },
+            metadata={
+                "retried_from_run_id": run.retried_from_run_id,
+                "potential_conflict_count": run.impact_summary.get("potential_conflict_count", 0),
+            },
+            error=error or run.error,
+        )
 
 
 def _upload_from_artifact(artifact: SourceArtifact) -> DocumentUpload | None:

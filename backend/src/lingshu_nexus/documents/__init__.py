@@ -14,6 +14,7 @@ from lingshu_nexus.documents.parsers import (
 )
 from lingshu_nexus.documents.repository import InMemoryDocumentRepository
 from lingshu_nexus.documents.service import DocumentIngestService
+from lingshu_nexus.observability import ObservabilityRecorder
 from lingshu_nexus.persistence.object_store import ObjectStore
 
 
@@ -21,6 +22,7 @@ def create_document_service(
     *,
     object_store: ObjectStore,
     max_upload_bytes: int,
+    observability: ObservabilityRecorder | None = None,
 ) -> DocumentIngestService:
     parser = CompositeDocumentParser(
         markdown_parser=MarkdownDocumentParser(),
@@ -31,6 +33,7 @@ def create_document_service(
         object_store=object_store,
         parser=parser,
         max_upload_bytes=max_upload_bytes,
+        observability=observability,
     )
 
 

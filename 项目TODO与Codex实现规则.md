@@ -178,7 +178,7 @@ PDF/Markdown 资料导入
 | T-080 | 流式问答前后端 | P0 | `[x]` | T-060, T-070 |
 | T-090 | 管理面板 P0 能力 | P0 | `[x]` | T-030, T-050, T-070 |
 | T-100 | 增量更新与 SourceConnector | P0/P1 | `[?]` | T-030, T-050 |
-| T-110 | 权限、审计、安全与观测 | P0 | `[ ]` | T-020 起贯穿实施 |
+| T-110 | 权限、审计、安全与观测 | P0 | `[x]` | T-020 起贯穿实施 |
 | T-120 | 评测、回归与 V1 发布验收 | P0 | `[ ]` | T-030 至 T-110 |
 | T-200 | 后续 GraphRAG/扩域/商用研究 | P1/P2 | `[ ]` | T-120 |
 
@@ -752,18 +752,18 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-110 `[ ]` 权限、审计、安全与观测
+### T-110 `[x]` 权限、审计、安全与观测
 
 **目标：** 让内部科研版本具备最低限度的责任追踪、安全控制和排错能力。
 
 **实施内容：**
 
-- [ ] 实现基础角色：研究者、审核专家、管理员、只读用户，或记录采用的简化 V1 方案。
-- [ ] 实现上传、审核、发布/回滚、Skill 启停、数据源配置、聊天调用的审计事件。
-- [ ] 实现密钥仅通过环境变量/安全配置注入，UI 和日志不回显密钥。
-- [ ] 为任务、模型调用和错误提供结构化日志/指标。
-- [ ] 对上传文件和资料内容的指令注入风险采取隔离策略。
-- [ ] 在产品界面显示内部科研用途与非诊疗声明。
+- [x] 实现基础角色：研究者、审核专家、管理员、只读用户，或记录采用的简化 V1 方案。
+- [x] 实现上传、审核、发布/回滚、Skill 启停、数据源配置、聊天调用的审计事件。
+- [x] 实现密钥仅通过环境变量/安全配置注入，UI 和日志不回显密钥。
+- [x] 为任务、模型调用和错误提供结构化日志/指标。
+- [x] 对上传文件和资料内容的指令注入风险采取隔离策略。
+- [x] 在产品界面显示内部科研用途与非诊疗声明。
 
 **验收：**
 
@@ -771,6 +771,24 @@ PDF/Markdown 资料导入
 - 审计日志能还原一次发布和一次聊天回答所依据的版本与操作者。
 - 仓库扫描不含真实 token/key。
 - 文献内容中的指令文本不会触发后台工具或权限动作。
+
+完成证据：
+- 修改/新增文件：
+  - 后端：`backend/src/lingshu_nexus/security.py`、`backend/src/lingshu_nexus/observability.py`、`backend/src/lingshu_nexus/api/routes/`、`backend/src/lingshu_nexus/documents/`、`backend/src/lingshu_nexus/extraction/service.py`、`backend/src/lingshu_nexus/sources/`、`backend/src/lingshu_nexus/review/service.py`
+  - 测试：`tests/test_admin_panel.py`、`tests/test_source_connector.py`、`tests/test_document_ingestion.py`
+  - 文档：`README.md`、`docs/adr/0012-v1-security-audit-observability.md`、`项目TODO与Codex实现规则.md`
+- 验收命令或操作：
+  - `uv run pytest tests/test_admin_panel.py tests/test_source_connector.py tests/test_document_ingestion.py tests/test_chat_stream.py`
+  - `env UV_CACHE_DIR=.uv-cache PYTHONPYCACHEPREFIX=/private/tmp/lingshu-nexus-pycache make quality PYTHON='uv run python'`
+  - `npm --prefix frontend run build`
+  - `rg -n "(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|api_key\\s*[:=]\\s*['\\\"][A-Za-z0-9_\\-]{20,})" --glob '!frontend/node_modules/**' --glob '!frontend/dist/**' --glob '!项目TODO与Codex实现规则.md' .`
+- 结果摘要：
+  - 已实现 V1 简化角色模型与服务端 RBAC：上传/重处理需研究者及以上，审核和 release 快照需审核专家及以上，release 激活/回滚、数据源管理和 Skill 启停需管理员。
+  - 审计事件覆盖文档上传/重处理、审核、release 创建/激活/回滚、Skill 上传/启停/执行、数据源配置/同步、聊天完成/失败和反馈；聊天审计记录 release、Skill execution、citation keys、操作者与 query hash，不写完整 query。
+  - 新增脱敏配置状态和观测事件接口；SourceConnector config 响应遮罩 secret reference，明文 secret-looking key 仍被拒绝。
+  - 文献/资料内容作为 evidence data 处理，不参与权限或后台动作授权；界面继续显示“内部科研证据辅助，不作为诊疗建议”。
+- 未覆盖风险（若有）：
+  - 当前身份来源是 V1 内部基线的请求级 actor 字段，不是生产登录/SSO；生产持久化审计仓库和外部 OpenTelemetry/日志后端仍需后续 adapter。
 
 ---
 

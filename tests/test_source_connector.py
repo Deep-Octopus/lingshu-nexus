@@ -303,6 +303,49 @@ class SourceConnectorTestCase(unittest.TestCase):
         self.assertEqual(runs.status_code, 200)
         self.assertEqual(len(runs.json()["runs"]), 1)
 
+    def test_fastapi_source_management_requires_admin_and_masks_secret_refs(self) -> None:
+        service, review_service = _source_service()
+        app = create_app()
+        app.state.source_update_service = service
+        app.state.review_release_service = review_service
+        client = TestClient(app)
+
+        forbidden = client.post(
+            "/api/v1/sources",
+            params={"domain_id": "acupuncture"},
+            json={
+                "id": "masked-fixture",
+                "name": "Masked fixture",
+                "connector_type": "fixture",
+                "actor_id": "researcher-ui",
+                "actor_role": "researcher",
+                "config": {"auth_ref": "env:SOURCE_TOKEN", "artifacts": []},
+            },
+        )
+        self.assertEqual(forbidden.status_code, 403)
+
+        created = client.post(
+            "/api/v1/sources",
+            params={"domain_id": "acupuncture"},
+            json={
+                "id": "masked-fixture",
+                "name": "Masked fixture",
+                "connector_type": "fixture",
+                "actor_id": "admin-ui",
+                "actor_role": "admin",
+                "config": {"auth_ref": "env:SOURCE_TOKEN", "artifacts": []},
+            },
+        )
+        self.assertEqual(created.status_code, 200)
+        self.assertEqual(created.json()["config"]["auth_ref"], "***configured***")
+
+        forbidden_sync = client.post(
+            "/api/v1/sources/masked-fixture:sync",
+            params={"domain_id": "acupuncture"},
+            json={"actor_id": "researcher-ui", "actor_role": "researcher"},
+        )
+        self.assertEqual(forbidden_sync.status_code, 403)
+
     def test_source_connector_migration_can_apply_and_drop(self) -> None:
         migration_names = (
             "0001_foundation",

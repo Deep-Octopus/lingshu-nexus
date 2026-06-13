@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import sqlite3
@@ -170,4 +172,3 @@ class PersistenceFoundationTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

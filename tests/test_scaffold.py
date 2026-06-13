@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import sys
@@ -53,4 +55,3 @@ class ScaffoldTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

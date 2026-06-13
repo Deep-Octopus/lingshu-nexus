@@ -24,6 +24,7 @@ from lingshu_nexus.documents.parsers import (
     canonical_media_type,
 )
 from lingshu_nexus.documents.repository import DocumentRepository
+from lingshu_nexus.observability import ObservabilityRecorder, ObservationStatus
 from lingshu_nexus.persistence.models import DataLayer, JobRun, JobStatus
 from lingshu_nexus.persistence.object_store import ObjectStore
 
@@ -36,6 +37,7 @@ class DocumentIngestService:
         object_store: ObjectStore,
         parser: DocumentParser,
         max_upload_bytes: int,
+        observability: ObservabilityRecorder | None = None,
     ) -> None:
         if max_upload_bytes < 1:
             raise ValueError("max_upload_bytes must be >= 1")
@@ -43,6 +45,7 @@ class DocumentIngestService:
         self._object_store = object_store
         self._parser = parser
         self._max_upload_bytes = max_upload_bytes
+        self._observability = observability
 
     def batch_upload(
         self,
@@ -180,6 +183,13 @@ class DocumentIngestService:
             self._repository.add_job_run(
                 replace(running_job, status=JobStatus.SUCCEEDED, output_ref=parsed_ref.storage_uri)
             )
+            self._record_parse_observation(
+                record=updated,
+                job_id=job_id,
+                status=ObservationStatus.SUCCEEDED,
+                attempt=attempt,
+                chunk_count=len(parsed.chunks),
+            )
             return updated
         except (DocumentParseError, UnsupportedDocumentTypeError) as exc:
             updated = replace(
@@ -194,7 +204,45 @@ class DocumentIngestService:
             self._repository.add_job_run(
                 replace(running_job, status=JobStatus.FAILED, error=str(exc))
             )
+            self._record_parse_observation(
+                record=updated,
+                job_id=job_id,
+                status=ObservationStatus.FAILED,
+                attempt=attempt,
+                error=str(exc),
+            )
             return updated
+
+    def _record_parse_observation(
+        self,
+        *,
+        record: DocumentRecord,
+        job_id: str,
+        status: ObservationStatus,
+        attempt: int,
+        chunk_count: int = 0,
+        error: str | None = None,
+    ) -> None:
+        if self._observability is None:
+            return
+        self._observability.record(
+            event_type="document.parse",
+            status=status,
+            domain_id=record.domain_id,
+            target_type="document",
+            target_id=record.id,
+            trace_id=job_id,
+            metrics={
+                "attempt": attempt,
+                "byte_size": record.byte_size,
+                "chunk_count": chunk_count,
+            },
+            metadata={
+                "media_type": record.media_type,
+                "parser_version": record.parser_version,
+            },
+            error=error,
+        )
 
 
 def _chunk_to_json(chunk: SourceChunk) -> dict[str, object]:

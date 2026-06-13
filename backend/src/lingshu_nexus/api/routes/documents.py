@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from typing import Annotated, cast
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 
 from lingshu_domain import DEFAULT_DOMAIN_ID, SourceChunk
 from lingshu_nexus.documents import DocumentIngestService, DocumentRecord, DocumentUpload
 from lingshu_nexus.documents.parsers import DocumentParseError
 from lingshu_nexus.documents.repository import DocumentNotFoundError
+from lingshu_nexus.review import ReviewReleaseService
+from lingshu_nexus.security import (
+    ActorContext,
+    AuthorizationError,
+    actor_from_form,
+    require_minimum_role,
+)
+from lingshu_nexus.skills import UserRole
 
 router = APIRouter(prefix="/api/v1", tags=["documents"])
 
@@ -18,13 +26,27 @@ def get_document_service(request: Request) -> DocumentIngestService:
     return cast(DocumentIngestService, request.app.state.document_service)
 
 
+def get_review_service(request: Request) -> ReviewReleaseService:
+    return cast(ReviewReleaseService, request.app.state.review_release_service)
+
+
 @router.post("/domains/{domain_id}/documents/batch-upload")
 @router.post("/domains/{domain_id}/documents:batch-upload")
 async def batch_upload_documents(
     domain_id: str,
     files: Annotated[list[UploadFile], File(description="PDF or Markdown files")],
     service: Annotated[DocumentIngestService, Depends(get_document_service)],
+    review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
+    actor_id: Annotated[str, Form()] = "researcher-ui",
+    actor_role: Annotated[str, Form()] = UserRole.RESEARCHER.value,
 ) -> dict[str, object]:
+    actor = _actor_from_form_or_http(
+        actor_id=actor_id,
+        actor_role=actor_role,
+        default_actor_id="researcher-ui",
+        default_role=UserRole.RESEARCHER,
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.RESEARCHER, action="upload documents")
     uploads: list[DocumentUpload] = []
     for file in files:
         uploads.append(
@@ -35,6 +57,21 @@ async def batch_upload_documents(
             )
         )
     results = service.batch_upload(domain_id=domain_id, uploads=tuple(uploads))
+    review_service.record_audit_event(
+        domain_id=domain_id,
+        actor_id=actor.actor_id,
+        action="document.uploaded",
+        target_type="document_batch",
+        target_id="batch-upload",
+        metadata={
+            "actor_role": actor.role.value,
+            "file_count": len(uploads),
+            "accepted_count": sum(result.accepted for result in results),
+            "duplicate_count": sum(result.duplicate for result in results),
+            "document_ids": [result.document_id for result in results if result.document_id],
+            "content_treatment": "evidence_data_only",
+        },
+    )
     return {
         "domain_id": domain_id,
         "results": [
@@ -77,14 +114,37 @@ async def get_document(
 async def reprocess_document(
     document_id: str,
     service: Annotated[DocumentIngestService, Depends(get_document_service)],
+    review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
+    actor_id: Annotated[str, Query()] = "researcher-ui",
+    actor_role: Annotated[str, Query()] = UserRole.RESEARCHER.value,
 ) -> dict[str, object]:
+    actor = _actor_from_form_or_http(
+        actor_id=actor_id,
+        actor_role=actor_role,
+        default_actor_id="researcher-ui",
+        default_role=UserRole.RESEARCHER,
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.RESEARCHER, action="reprocess document")
     try:
         record = service.reprocess(domain_id=domain_id, document_id=document_id)
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Document not found") from exc
     except DocumentParseError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    review_service.record_audit_event(
+        domain_id=domain_id,
+        actor_id=actor.actor_id,
+        action="document.reprocessed",
+        target_type="document",
+        target_id=document_id,
+        metadata={
+            "actor_role": actor.role.value,
+            "status": record.status.value,
+            "parse_attempts": record.parse_attempts,
+            "content_treatment": "evidence_data_only",
+        },
+    )
     return _document_detail(record)
 
 
@@ -129,3 +189,28 @@ def _chunk_payload(chunk: SourceChunk) -> dict[str, object]:
         "text": chunk.text,
         "parser_version": chunk.parser_version,
     }
+
+
+def _actor_from_form_or_http(
+    *,
+    actor_id: str,
+    actor_role: str,
+    default_actor_id: str,
+    default_role: UserRole,
+) -> ActorContext:
+    try:
+        return actor_from_form(
+            actor_id=actor_id,
+            actor_role=actor_role,
+            default_actor_id=default_actor_id,
+            default_role=default_role,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _require_or_http(*, actor: ActorContext, minimum_role: UserRole, action: str) -> None:
+    try:
+        require_minimum_role(actor, minimum_role, action=action)
+    except AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc

@@ -27,4 +27,3 @@ def require_non_empty(values: Iterable[object], field_name: str) -> None:
 def require_probability(value: float, field_name: str) -> None:
     if value < 0 or value > 1:
         raise SchemaValidationError(f"{field_name} must be between 0 and 1")
-

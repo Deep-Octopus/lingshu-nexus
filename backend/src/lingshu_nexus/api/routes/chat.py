@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from hashlib import sha256
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
@@ -26,7 +27,9 @@ from lingshu_nexus.chat import (
     chunk_text,
 )
 from lingshu_nexus.documents import DocumentIngestService
+from lingshu_nexus.observability import ObservabilityRecorder, ObservationStatus
 from lingshu_nexus.retrieval import NoActiveReleaseError, ReleaseNotIndexedError, RetrievalService
+from lingshu_nexus.review import ReviewReleaseService
 from lingshu_nexus.skills import (
     SkillNotFoundError,
     SkillPermissionError,
@@ -47,6 +50,14 @@ def get_retrieval_service(request: Request) -> RetrievalService:
 
 def get_document_service(request: Request) -> DocumentIngestService:
     return cast(DocumentIngestService, request.app.state.document_service)
+
+
+def get_review_service(request: Request) -> ReviewReleaseService:
+    return cast(ReviewReleaseService, request.app.state.review_release_service)
+
+
+def get_observability(request: Request) -> ObservabilityRecorder:
+    return cast(ObservabilityRecorder, request.app.state.observability)
 
 
 @router.post("/chat/sessions")
@@ -99,6 +110,8 @@ async def stream_chat_message(
     chat_service: Annotated[ChatService, Depends(get_chat_service)],
     retrieval_service: Annotated[RetrievalService, Depends(get_retrieval_service)],
     document_service: Annotated[DocumentIngestService, Depends(get_document_service)],
+    review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
+    observability: Annotated[ObservabilityRecorder, Depends(get_observability)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> StreamingResponse:
     query = _required_payload_text(payload, "query")
@@ -148,24 +161,100 @@ async def stream_chat_message(
                 limit=limit,
             )
         except NoActiveReleaseError:
+            _record_chat_failure(
+                review_service=review_service,
+                observability=observability,
+                domain_id=domain_id,
+                session_id=session_id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                query=query,
+                code="no_active_release",
+                message="当前领域没有 active release，无法回答。",
+            )
             yield _error_event("no_active_release", "当前领域没有 active release，无法回答。")
             return
         except ReleaseNotIndexedError:
+            _record_chat_failure(
+                review_service=review_service,
+                observability=observability,
+                domain_id=domain_id,
+                session_id=session_id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                query=query,
+                code="release_not_indexed",
+                message="active release 尚未建立检索索引。",
+            )
             yield _error_event("release_not_indexed", "active release 尚未建立检索索引。")
             return
         except ChatSessionNotFoundError:
+            _record_chat_failure(
+                review_service=review_service,
+                observability=observability,
+                domain_id=domain_id,
+                session_id=session_id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                query=query,
+                code="session_not_found",
+                message="Chat session not found.",
+            )
             yield _error_event("session_not_found", "Chat session not found.")
             return
         except SkillNotFoundError:
+            _record_chat_failure(
+                review_service=review_service,
+                observability=observability,
+                domain_id=domain_id,
+                session_id=session_id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                query=query,
+                code="skill_not_found",
+                message="指定 Skill 不存在或不属于当前领域。",
+            )
             yield _error_event("skill_not_found", "指定 Skill 不存在或不属于当前领域。")
             return
         except SkillRoutingError as exc:
+            _record_chat_failure(
+                review_service=review_service,
+                observability=observability,
+                domain_id=domain_id,
+                session_id=session_id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                query=query,
+                code="skill_routing_failed",
+                message=str(exc),
+            )
             yield _error_event("skill_routing_failed", str(exc))
             return
         except SkillPermissionError as exc:
+            _record_chat_failure(
+                review_service=review_service,
+                observability=observability,
+                domain_id=domain_id,
+                session_id=session_id,
+                actor_id=actor_id,
+                actor_role=actor_role,
+                query=query,
+                code="skill_forbidden",
+                message=str(exc),
+            )
             yield _error_event("skill_forbidden", str(exc))
             return
 
+        _record_chat_success(
+            review_service=review_service,
+            observability=observability,
+            domain_id=domain_id,
+            session_id=session_id,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            query=query,
+            result=result,
+        )
         for delta in chunk_text(result.answer):
             yield _sse(ChatStreamEvent(type=ChatStreamEventType.TEXT, payload={"delta": delta}))
         for citation in result.citations:
@@ -186,14 +275,16 @@ async def submit_chat_feedback(
     message_id: str,
     payload: Annotated[dict[str, object], Body()],
     service: Annotated[ChatService, Depends(get_chat_service)],
+    review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
+    actor_id = _required_payload_text(payload, "actor_id")
     try:
         feedback = service.submit_feedback(
             domain_id=domain_id,
             session_id=session_id,
             message_id=message_id,
-            actor_id=_required_payload_text(payload, "actor_id"),
+            actor_id=actor_id,
             rating=_rating_from_payload(payload),
             note=_optional_payload_text(payload, "note"),
         )
@@ -201,6 +292,18 @@ async def submit_chat_feedback(
         raise HTTPException(status_code=404, detail="Chat message not found") from exc
     except ChatWorkflowError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    review_service.record_audit_event(
+        domain_id=domain_id,
+        actor_id=actor_id,
+        action="chat.feedback_submitted",
+        target_type="chat_message",
+        target_id=message_id,
+        metadata={
+            "session_id": session_id,
+            "rating": feedback.rating.value,
+            "note_present": feedback.note is not None,
+        },
+    )
     return _feedback_payload(feedback)
 
 
@@ -247,6 +350,107 @@ def _done_payload(result: ChatAnswerResult) -> dict[str, object]:
         "trace_id": result.assistant_message.metadata.get("skill_execution_id"),
         "notice": result.notice,
     }
+
+
+def _record_chat_success(
+    *,
+    review_service: ReviewReleaseService,
+    observability: ObservabilityRecorder,
+    domain_id: str,
+    session_id: str,
+    actor_id: str,
+    actor_role: UserRole,
+    query: str,
+    result: ChatAnswerResult,
+) -> None:
+    release = result.release
+    skill = result.skill
+    citation_keys = result.assistant_message.citation_keys
+    skill_execution_id = result.assistant_message.metadata.get("skill_execution_id")
+    review_service.record_audit_event(
+        domain_id=domain_id,
+        actor_id=actor_id,
+        action="chat.answer_completed",
+        target_type="chat_session",
+        target_id=session_id,
+        metadata={
+            "actor_role": actor_role.value,
+            "user_message_id": result.user_message.id,
+            "assistant_message_id": result.assistant_message.id,
+            "skill_execution_id": skill_execution_id,
+            "skill_id": skill.get("id"),
+            "skill_version": skill.get("version"),
+            "release_id": release.get("id"),
+            "release_version": release.get("version"),
+            "citation_keys": list(citation_keys),
+            "query_sha256": _query_hash(query),
+            "query_length": len(query),
+        },
+    )
+    observability.record(
+        event_type="chat.answer",
+        status=ObservationStatus.SUCCEEDED,
+        domain_id=domain_id,
+        actor_id=actor_id,
+        target_type="chat_session",
+        target_id=session_id,
+        trace_id=str(skill_execution_id) if skill_execution_id else None,
+        release_id=str(release.get("id")) if release.get("id") else None,
+        metrics={
+            "query_length": len(query),
+            "answer_length": len(result.answer),
+            "citation_count": len(result.citations),
+        },
+        metadata={
+            "actor_role": actor_role.value,
+            "skill_id": skill.get("id"),
+            "skill_version": skill.get("version"),
+            "release_version": release.get("version"),
+        },
+    )
+
+
+def _record_chat_failure(
+    *,
+    review_service: ReviewReleaseService,
+    observability: ObservabilityRecorder,
+    domain_id: str,
+    session_id: str,
+    actor_id: str,
+    actor_role: UserRole,
+    query: str,
+    code: str,
+    message: str,
+) -> None:
+    metadata = {
+        "actor_role": actor_role.value,
+        "error_code": code,
+        "query_sha256": _query_hash(query),
+        "query_length": len(query),
+    }
+    review_service.record_audit_event(
+        domain_id=domain_id,
+        actor_id=actor_id,
+        action="chat.answer_failed",
+        target_type="chat_session",
+        target_id=session_id,
+        metadata=metadata,
+    )
+    observability.record(
+        event_type="chat.answer",
+        status=ObservationStatus.FAILED,
+        domain_id=domain_id,
+        actor_id=actor_id,
+        target_type="chat_session",
+        target_id=session_id,
+        metrics={"query_length": len(query)},
+        metadata=metadata,
+        error=message,
+    )
+
+
+def _query_hash(query: str) -> str:
+    return sha256(query.encode("utf-8")).hexdigest()
 
 
 def _session_payload(session: ChatSession) -> dict[str, object]:

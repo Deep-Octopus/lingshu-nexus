@@ -31,6 +31,7 @@ from lingshu_nexus.extraction.models import (
 )
 from lingshu_nexus.extraction.providers import LlmCompletionRequest, LlmProvider, ProviderError
 from lingshu_nexus.extraction.repository import CandidateRepository
+from lingshu_nexus.observability import ObservabilityRecorder, ObservationStatus
 from lingshu_nexus.persistence.models import DataLayer, JobStatus
 from lingshu_nexus.persistence.object_store import ObjectRef, ObjectStore
 
@@ -48,12 +49,14 @@ class CandidateExtractionService:
         provider: LlmProvider,
         prompt: ExtractionPrompt,
         schema_version: str = ExtractionSchemaVersion.CANDIDATE_V0_1.value,
+        observability: ObservabilityRecorder | None = None,
     ) -> None:
         self._repository = repository
         self._object_store = object_store
         self._provider = provider
         self._prompt = prompt
         self._schema_version = schema_version
+        self._observability = observability
 
     def extract_document(self, document: DocumentRecord) -> CandidateExtractionRun:
         require_domain_id(document.domain_id)
@@ -124,6 +127,11 @@ class CandidateExtractionService:
             output_ref = self._store_candidate_artifact(run, provider_response.text)
             run = _replace_output_ref(run, output_ref)
             self._repository.add_run(run)
+            self._record_model_observation(
+                run=run,
+                status=ObservationStatus.SUCCEEDED,
+                chunk_count=len(document.chunks),
+            )
             return run
         except (ProviderError, CandidateExtractionError, SchemaValidationError) as exc:
             return self._failed_run(
@@ -156,6 +164,12 @@ class CandidateExtractionService:
             failure_reason=failure_reason,
         )
         self._repository.add_run(run)
+        self._record_model_observation(
+            run=run,
+            status=ObservationStatus.FAILED,
+            chunk_count=len(document.chunks),
+            error=failure_reason,
+        )
         return run
 
     def _store_candidate_artifact(
@@ -188,6 +202,41 @@ class CandidateExtractionService:
             layer=DataLayer.CANDIDATE,
             media_type="application/json",
             version=1,
+        )
+
+    def _record_model_observation(
+        self,
+        *,
+        run: CandidateExtractionRun,
+        status: ObservationStatus,
+        chunk_count: int,
+        error: str | None = None,
+    ) -> None:
+        if self._observability is None:
+            return
+        self._observability.record(
+            event_type="model.extraction",
+            status=status,
+            domain_id=run.domain_id,
+            target_type="document",
+            target_id=run.document_id,
+            trace_id=run.id,
+            config_versions=(run.prompt_version, run.schema_version),
+            metrics={
+                "chunk_count": chunk_count,
+                "latency_ms": run.latency_ms,
+                "prompt_tokens": run.token_usage.prompt_tokens,
+                "completion_tokens": run.token_usage.completion_tokens,
+                "total_tokens": run.token_usage.total_tokens,
+                "estimated_cost": run.token_usage.estimated_cost,
+            },
+            metadata={
+                "provider": run.provider,
+                "model": run.model,
+                "assertion_count": len(run.evidence_assertions),
+                "raw_response_hash": run.raw_response_hash,
+            },
+            error=error,
         )
 
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from lingshu_domain import DEFAULT_DOMAIN_ID, SourceChunk, SourceDocument
 from lingshu_nexus.documents import DocumentIngestService
 from lingshu_nexus.retrieval import NoActiveReleaseError, ReleaseNotIndexedError, RetrievalService
+from lingshu_nexus.review import ReviewReleaseService
 from lingshu_nexus.skills import (
     SkillDefinition,
     SkillExecutionRecord,
@@ -34,6 +35,10 @@ def get_retrieval_service(request: Request) -> RetrievalService:
 
 def get_document_service(request: Request) -> DocumentIngestService:
     return cast(DocumentIngestService, request.app.state.document_service)
+
+
+def get_review_service(request: Request) -> ReviewReleaseService:
+    return cast(ReviewReleaseService, request.app.state.review_release_service)
 
 
 @router.get("/skills")
@@ -83,13 +88,16 @@ async def enable_skill(
     skill_id: str,
     payload: Annotated[dict[str, object], Body()],
     service: Annotated[SkillRegistryService, Depends(get_skill_service)],
+    review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
     return _set_skill_status(
         service=service,
+        review_service=review_service,
         domain_id=domain_id,
         skill_id=skill_id,
         status=SkillStatus.ACTIVE,
+        actor_id=_payload_text(payload, "actor_id", "admin-ui"),
         actor_role=_role_from_payload(payload),
     )
 
@@ -99,13 +107,16 @@ async def disable_skill(
     skill_id: str,
     payload: Annotated[dict[str, object], Body()],
     service: Annotated[SkillRegistryService, Depends(get_skill_service)],
+    review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
     return _set_skill_status(
         service=service,
+        review_service=review_service,
         domain_id=domain_id,
         skill_id=skill_id,
         status=SkillStatus.DISABLED,
+        actor_id=_payload_text(payload, "actor_id", "admin-ui"),
         actor_role=_role_from_payload(payload),
     )
 
@@ -117,7 +128,10 @@ async def execute_skill(
     service: Annotated[SkillRegistryService, Depends(get_skill_service)],
     retrieval_service: Annotated[RetrievalService, Depends(get_retrieval_service)],
     document_service: Annotated[DocumentIngestService, Depends(get_document_service)],
+    review_service: Annotated[ReviewReleaseService, Depends(get_review_service)],
 ) -> dict[str, object]:
+    actor_id = _required_payload_text(payload, "actor_id")
+    actor_role = _role_from_payload(payload)
     try:
         source_documents, source_chunks = _source_context(
             document_service=document_service,
@@ -131,8 +145,8 @@ async def execute_skill(
         result = service.execute(
             domain_id=domain_id,
             query=_required_payload_text(payload, "query"),
-            actor_id=_required_payload_text(payload, "actor_id"),
-            actor_role=_role_from_payload(payload),
+            actor_id=actor_id,
+            actor_role=actor_role,
             skill_id=_optional_payload_text(payload, "skill_id"),
             limit=_limit_from_payload(payload),
         )
@@ -146,6 +160,22 @@ async def execute_skill(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SkillPermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    review_service.record_audit_event(
+        domain_id=domain_id,
+        actor_id=actor_id,
+        action="skill.executed",
+        target_type="skill",
+        target_id=result.record.skill_id,
+        metadata={
+            "actor_role": actor_role.value,
+            "skill_version": result.record.skill_version,
+            "execution_id": result.record.id,
+            "status": result.record.status.value,
+            "release_id": result.record.release_id,
+            "release_version": result.record.release_version,
+            "citation_keys": list(result.record.citation_keys),
+        },
+    )
     return _execution_result_payload(result)
 
 
@@ -167,9 +197,11 @@ async def list_skill_execution_logs(
 def _set_skill_status(
     *,
     service: SkillRegistryService,
+    review_service: ReviewReleaseService,
     domain_id: str,
     skill_id: str,
     status: SkillStatus,
+    actor_id: str,
     actor_role: UserRole,
 ) -> dict[str, object]:
     try:
@@ -183,6 +215,18 @@ def _set_skill_status(
         raise HTTPException(status_code=404, detail="Skill not found") from exc
     except SkillPermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    review_service.record_audit_event(
+        domain_id=domain_id,
+        actor_id=actor_id,
+        action=f"skill.{status.value}",
+        target_type="skill",
+        target_id=skill_id,
+        metadata={
+            "actor_role": actor_role.value,
+            "skill_version": skill.version,
+            "status": status.value,
+        },
+    )
     return _skill_payload(skill)
 
 
@@ -282,6 +326,13 @@ def _optional_payload_text(payload: dict[str, object], key: str) -> str | None:
     if not isinstance(value, str):
         raise HTTPException(status_code=422, detail=f"{key} must be a string")
     return value or None
+
+
+def _payload_text(payload: dict[str, object], key: str, default: str) -> str:
+    value = payload.get(key, default)
+    if not isinstance(value, str) or not value.strip():
+        raise HTTPException(status_code=422, detail=f"{key} must be a string")
+    return value.strip()
 
 
 def _limit_from_payload(payload: dict[str, object]) -> int:

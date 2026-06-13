@@ -177,7 +177,7 @@ PDF/Markdown 资料导入
 | T-070 | Agent Skill Registry 与只读 Skill | P0 | `[x]` | T-060 |
 | T-080 | 流式问答前后端 | P0 | `[x]` | T-060, T-070 |
 | T-090 | 管理面板 P0 能力 | P0 | `[x]` | T-030, T-050, T-070 |
-| T-100 | 增量更新与 SourceConnector | P0/P1 | `[ ]` | T-030, T-050 |
+| T-100 | 增量更新与 SourceConnector | P0/P1 | `[?]` | T-030, T-050 |
 | T-110 | 权限、审计、安全与观测 | P0 | `[ ]` | T-020 起贯穿实施 |
 | T-120 | 评测、回归与 V1 发布验收 | P0 | `[ ]` | T-030 至 T-110 |
 | T-200 | 后续 GraphRAG/扩域/商用研究 | P1/P2 | `[ ]` | T-120 |
@@ -702,18 +702,18 @@ PDF/Markdown 资料导入
 
 ---
 
-### T-100 `[ ]` 增量更新与 SourceConnector
+### T-100 `[?]` 增量更新与 SourceConnector
 
 **目标：** 支持新资料持续进入系统，且不绑定尚未确定的外部接口格式。
 
 **实施内容：**
 
-- [ ] 实现人工新增资料触发增量处理。
-- [ ] 定义内部 `SourceArtifact` 契约，支持 JSON、文件和下载引用。
-- [ ] 实现 `SourceConnector` 端口与 generic connector 配置模型。
-- [ ] 实现 schedule、执行记录、幂等键、失败重试和原始响应保留。
-- [ ] 对新批次执行解析、抽取、差异/冲突提示与候选审核。
-- [ ] 获得真实外部接口样例后，实现对应 adapter 与契约测试。
+- [x] 实现人工新增资料触发增量处理。
+- [x] 定义内部 `SourceArtifact` 契约，支持 JSON、文件和下载引用。
+- [x] 实现 `SourceConnector` 端口与 generic connector 配置模型。
+- [x] 实现 schedule、执行记录、幂等键、失败重试和原始响应保留。
+- [x] 对新批次执行解析、抽取、差异/冲突提示与候选审核。
+- [?] 获得真实外部接口样例后，实现对应 adapter 与契约测试。
 
 **验收：**
 
@@ -725,6 +725,30 @@ PDF/Markdown 资料导入
 **等待外部输入：**
 
 - `[?]` 外部接口地址、认证、请求参数与真实返回样例。
+
+完成证据：
+- 修改/新增文件：
+  - 后端 SourceConnector：`backend/src/lingshu_nexus/sources/`
+  - API 接入：`backend/src/lingshu_nexus/api/routes/sources.py`、`backend/src/lingshu_nexus/api/main.py`、`backend/src/lingshu_nexus/api/routes/admin.py`
+  - 迁移：`backend/migrations/0008_source_connector.up.sql`、`backend/migrations/0008_source_connector.down.sql`
+  - 前端管理台：`frontend/src/App.vue`、`frontend/src/style.css`
+  - 测试/文档：`tests/test_source_connector.py`、`tests/test_admin_panel.py`、`README.md`、`docs/adr/0011-source-connector-incremental-update.md`
+- 验收命令或操作：
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest tests/test_source_connector.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run pytest tests/test_admin_panel.py tests/test_document_ingestion.py tests/test_candidate_extraction.py`
+  - `env UV_CACHE_DIR=.uv-cache uv run mypy`
+  - `env UV_CACHE_DIR=.uv-cache uv run ruff check backend/src/lingshu_nexus/sources backend/src/lingshu_nexus/api/routes/sources.py backend/src/lingshu_nexus/api/routes/admin.py backend/src/lingshu_nexus/api/main.py tests/test_source_connector.py tests/test_admin_panel.py`
+  - `npm --prefix frontend run build`
+- 结果摘要：
+  - 新增 `SourceArtifact` 内部契约，覆盖 JSON、文件和下载引用；所有 artifact/response 先进入 Raw 层。
+  - 新增 `SourceConnector` 端口、fixture connector、generic REST connector 配置模型、schedule 元数据、source sync run、artifact record、幂等键、显式 retry 入口和 SQL 迁移。
+  - 人工新增资料可通过 `POST /api/v1/domains/{domain_id}/sources:manual-sync` 进入文档解析、候选抽取、review batch；不直接发布到 active release。
+  - 新批次会生成潜在冲突/影响提示；重复 artifact 或重复文档哈希会跳过，不重复创建候选批次。
+  - 管理面板展示 source configs、source runs、重复跳过数、失败数和冲突提示；缺真实 MiMo 配置时记录 extraction 失败，不伪造候选证据。
+  - 测试覆盖人工增量新增后形成候选批次并发布新 release、重复同步不重复发布、fixture JSON/文件/下载引用处理、source API 和迁移 apply/drop。
+- 未覆盖风险（若有）：
+  - `[?]` 真实外部接口地址、认证方式、请求参数、分页/游标语义和返回样例尚未提供，因此未实现特定外部 adapter 与 contract test。
+  - 当前运行期仍使用 in-memory source repository；生产级持久化 adapter、完整权限控制和结构化观测留到 T-110/T-120。
 
 ---
 

@@ -234,6 +234,18 @@ small {
   color: #246334;
 }
 
+.request-debug {
+  background: #f3f7f5;
+  border: 1px solid #d8e0dd;
+  border-radius: 8px;
+  color: #53655f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+}
+
 .metric-grid {
   display: grid;
   gap: 12px;
@@ -305,6 +317,7 @@ small {
 
 .table-list,
 .assertion-list,
+.data-source-list,
 .audit-list {
   display: grid;
   gap: 8px;
@@ -461,8 +474,32 @@ small {
   padding: 10px;
 }
 
+.upload-results {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.upload-results article {
+  align-items: center;
+  background: #fbfcfb;
+  border: 1px solid #d8e0dd;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.upload-results span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .release-row,
 .skill-row,
+.source-row,
 .job-row,
 .audit-row {
   align-items: center;
@@ -476,7 +513,8 @@ small {
 }
 
 .release-row,
-.skill-row {
+.skill-row,
+.source-row {
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
@@ -677,6 +715,7 @@ small {
   .composer,
   .release-row,
   .skill-row,
+  .source-row,
   .job-row,
   .audit-row {
     grid-template-columns: 1fr;

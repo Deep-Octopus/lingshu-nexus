@@ -5,12 +5,12 @@ with the `acupuncture` domain and keeps tVNS/taVNS as a first professional
 sub-scenario, while avoiding patient-facing treatment advice and device control.
 
 This repository currently contains the T-000 engineering scaffold plus the
-T-010/T-090 foundations: versioned acupuncture/tVNS domain config, Evidence
+T-010/T-100 foundations: versioned acupuncture/tVNS domain config, Evidence
 Schema dataclasses, persistence records, SQL migrations, object storage and graph
 repository ports, document upload/parsing services, candidate extraction
 services, review/release governance, published graph retrieval, Agent Skill
-Registry baseline, SSE evidence chat, management panel baseline, quality
-commands, tests, and ADRs.
+Registry baseline, SSE evidence chat, management panel baseline, SourceConnector
+incremental update baseline, quality commands, tests, and ADRs.
 
 ## Prerequisites
 
@@ -72,7 +72,7 @@ Expected response includes `status: ok` and `default_domain_id: acupuncture`.
 T-030 adds synchronous PDF/Markdown ingestion endpoints for the internal research
 workflow:
 
-- `POST /api/v1/domains/{domain_id}/documents:batch-upload`
+- `POST /api/v1/domains/{domain_id}/documents/batch-upload`
 - `GET /api/v1/documents?domain_id=acupuncture`
 - `GET /api/v1/documents/{document_id}?domain_id=acupuncture`
 - `POST /api/v1/documents/{document_id}:reprocess?domain_id=acupuncture`
@@ -104,6 +104,33 @@ variables:
 Unit and integration tests use `FakeLlmProvider`, so no real key is required for
 offline validation. Live MiMo extraction is intentionally blocked until real
 provider settings are supplied.
+
+### Incremental Updates and SourceConnector
+
+T-100 adds a controlled `SourceConnector` path for new material:
+
+- `GET /api/v1/sources?domain_id=acupuncture`
+- `POST /api/v1/sources?domain_id=acupuncture`
+- `POST /api/v1/sources/{source_id}:sync?domain_id=acupuncture`
+- `GET /api/v1/source-runs?domain_id=acupuncture`
+- `GET /api/v1/source-runs/{run_id}?domain_id=acupuncture`
+- `POST /api/v1/source-runs/{run_id}:retry?domain_id=acupuncture`
+- `POST /api/v1/domains/{domain_id}/sources:manual-sync`
+
+`SourceArtifact` is the internal contract for external input and supports JSON
+payloads, file payloads, and download references. Every artifact is stored in the
+raw layer first. File and explicit internal JSON document payloads then enter the
+existing document parser, candidate extraction, and review-batch workflow.
+Duplicate artifact idempotency keys and duplicate document hashes are skipped, so
+repeat syncs do not create duplicate candidate batches.
+
+The built-in fixture connector verifies JSON/file/download-reference handling
+without network access. The generic REST connector preserves raw responses and
+maps only explicit `SourceArtifact` shapes; it does not guess PubMed, Crossref,
+CNKI, or other external schemas before real request/response samples and
+authorization rules are supplied. Connector configs reject inline secret-looking
+keys such as API keys, tokens, passwords, and secrets; use secret references in a
+future durable config store instead.
 
 ### Agent Skill Registry
 
@@ -153,13 +180,15 @@ T-090 adds management endpoints and a Vue console for the P0 operating loop:
 The console can upload and inspect documents, view parsed chunks and failed
 parse jobs, operate review decisions, preview/create/activate/rollback graph
 releases, upload/validate/enable/disable/run read-only Skill packages, inspect
-Skill logs, and verify published evidence through the chat view. Release and
-Skill management actions use confirmation prompts in the UI and write audit
-events through the server-side audit model.
+Skill logs, run SourceConnector syncs, inspect source runs, and verify published
+evidence through the chat view. Release and Skill management actions use
+confirmation prompts in the UI and write audit events through the server-side
+audit model.
 
 The overview reports model usage as unavailable when no model usage repository
 is mounted. It does not fabricate token or cost values. SourceConnector schedule
-and external data-source execution remain explicitly marked as pending T-100.
+metadata and offline/generic execution are present; true external adapters remain
+blocked until real interface samples are available.
 
 ## Worker
 

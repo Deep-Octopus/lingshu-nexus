@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import json
@@ -24,8 +26,8 @@ from lingshu_domain import (
     SchemaValidationError,
     SourceChunk,
     SourceDocument,
-    SourceQualityTier,
     SourceQualitySignals,
+    SourceQualityTier,
     build_domain_config,
 )
 
@@ -161,4 +163,3 @@ class EvidenceSchemaTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

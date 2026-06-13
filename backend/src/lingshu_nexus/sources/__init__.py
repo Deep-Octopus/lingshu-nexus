@@ -7,6 +7,7 @@ from lingshu_nexus.extraction import (
     LlmProvider,
 )
 from lingshu_nexus.extraction.prompts import load_literature_extraction_prompt
+from lingshu_nexus.observability import ObservabilityRecorder
 from lingshu_nexus.persistence.object_store import ObjectStore
 from lingshu_nexus.review import ReviewReleaseService
 from lingshu_nexus.sources.connectors import (
@@ -42,12 +43,14 @@ def create_source_update_service(
     document_service: DocumentIngestService,
     review_service: ReviewReleaseService,
     provider: LlmProvider,
+    observability: ObservabilityRecorder | None = None,
 ) -> SourceUpdateService:
     extraction_service = CandidateExtractionService(
         repository=InMemoryCandidateRepository(),
         object_store=object_store,
         provider=provider,
         prompt=load_literature_extraction_prompt(),
+        observability=observability,
     )
     return SourceUpdateService(
         repository=InMemorySourceRepository(),
@@ -59,6 +62,7 @@ def create_source_update_service(
             SourceConnectorType.FIXTURE: FixtureSourceConnector(),
             SourceConnectorType.GENERIC_REST: GenericRestSourceConnector(),
         },
+        observability=observability,
     )
 
 

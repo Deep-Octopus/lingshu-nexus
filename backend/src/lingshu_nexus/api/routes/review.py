@@ -21,6 +21,13 @@ from lingshu_nexus.review.models import (
     ReleaseRecord,
     StandardizationCandidate,
 )
+from lingshu_nexus.security import (
+    ActorContext,
+    AuthorizationError,
+    actor_from_payload,
+    require_minimum_role,
+)
+from lingshu_nexus.skills import UserRole
 
 router = APIRouter(prefix="/api/v1", tags=["review"])
 
@@ -77,12 +84,20 @@ async def approve_assertion(
     service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id=_required_text(payload, "reviewer"),
+        default_role=UserRole.REVIEWER,
+        actor_id_field="reviewer",
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.REVIEWER, action="review assertion")
     try:
         assertion = service.approve_assertion(
             domain_id=domain_id,
             assertion_id=assertion_id,
-            reviewer=_required_text(payload, "reviewer"),
+            reviewer=actor.actor_id,
             reason=_required_text(payload, "reason"),
+            actor_role=actor.role.value,
         )
     except ReviewedAssertionNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Assertion not found") from exc
@@ -98,12 +113,20 @@ async def reject_assertion(
     service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id=_required_text(payload, "reviewer"),
+        default_role=UserRole.REVIEWER,
+        actor_id_field="reviewer",
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.REVIEWER, action="review assertion")
     try:
         assertion = service.reject_assertion(
             domain_id=domain_id,
             assertion_id=assertion_id,
-            reviewer=_required_text(payload, "reviewer"),
+            reviewer=actor.actor_id,
             reason=_required_text(payload, "reason"),
+            actor_role=actor.role.value,
         )
     except ReviewedAssertionNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Assertion not found") from exc
@@ -117,11 +140,18 @@ async def modify_assertion(
     service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id=_required_text(payload, "reviewer"),
+        default_role=UserRole.REVIEWER,
+        actor_id_field="reviewer",
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.REVIEWER, action="review assertion")
     try:
         assertion = service.modify_assertion(
             domain_id=domain_id,
             assertion_id=assertion_id,
-            reviewer=_required_text(payload, "reviewer"),
+            reviewer=actor.actor_id,
             reason=_required_text(payload, "reason"),
             subject_text=_optional_text(payload, "subject_text"),
             subject_concept_id=_optional_text(payload, "subject_concept_id"),
@@ -131,6 +161,7 @@ async def modify_assertion(
             outcome=_optional_text(payload, "outcome"),
             metadata_updates=_optional_dict(payload, "metadata_updates"),
             approve=bool(payload.get("approve", True)),
+            actor_role=actor.role.value,
         )
     except ReviewedAssertionNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Assertion not found") from exc
@@ -144,13 +175,21 @@ async def mark_conflict(
     service: Annotated[ReviewReleaseService, Depends(get_review_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id=_required_text(payload, "reviewer"),
+        default_role=UserRole.REVIEWER,
+        actor_id_field="reviewer",
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.REVIEWER, action="review assertion")
     try:
         assertion = service.mark_conflict(
             domain_id=domain_id,
             assertion_id=assertion_id,
-            reviewer=_required_text(payload, "reviewer"),
+            reviewer=actor.actor_id,
             reason=_required_text(payload, "reason"),
             conflict_with_assertion_ids=_string_tuple(payload.get("conflict_with_assertion_ids")),
+            actor_role=actor.role.value,
         )
     except ReviewedAssertionNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Assertion not found") from exc
@@ -193,12 +232,20 @@ async def create_release(
     payload: Annotated[dict[str, Any], Body()],
     service: Annotated[ReviewReleaseService, Depends(get_review_service)],
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id=_required_text(payload, "released_by"),
+        default_role=UserRole.REVIEWER,
+        actor_id_field="released_by",
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.REVIEWER, action="create release")
     try:
         record = service.create_release(
             domain_id=domain_id,
             version=_required_text(payload, "version"),
             assertion_ids=_string_tuple(payload.get("assertion_ids")),
-            released_by=_required_text(payload, "released_by"),
+            released_by=actor.actor_id,
+            actor_role=actor.role.value,
         )
     except (ReviewedAssertionNotFoundError, ReleaseNotFoundError) as exc:
         raise HTTPException(status_code=404, detail="Release input not found") from exc
@@ -214,11 +261,18 @@ async def activate_release(
     payload: Annotated[dict[str, Any], Body()],
     service: Annotated[ReviewReleaseService, Depends(get_review_service)],
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id=_required_text(payload, "actor_id"),
+        default_role=UserRole.ADMIN,
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.ADMIN, action="activate release")
     try:
         release = service.activate_release(
             domain_id=domain_id,
             release_id=release_id,
-            actor_id=_required_text(payload, "actor_id"),
+            actor_id=actor.actor_id,
+            actor_role=actor.role.value,
         )
     except ReleaseNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Release not found") from exc
@@ -237,12 +291,19 @@ async def rollback_release(
     payload: Annotated[dict[str, Any], Body()],
     service: Annotated[ReviewReleaseService, Depends(get_review_service)],
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id=_required_text(payload, "actor_id"),
+        default_role=UserRole.ADMIN,
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.ADMIN, action="rollback release")
     try:
         release = service.rollback_to_release(
             domain_id=domain_id,
             release_id=release_id,
-            actor_id=_required_text(payload, "actor_id"),
+            actor_id=actor.actor_id,
             reason=_required_text(payload, "reason"),
+            actor_role=actor.role.value,
         )
     except ReleaseNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Release not found") from exc
@@ -402,3 +463,28 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     if not result:
         raise HTTPException(status_code=422, detail="assertion_ids must be a non-empty list")
     return result
+
+
+def _actor_from_payload_or_http(
+    payload: dict[str, Any],
+    *,
+    default_actor_id: str,
+    default_role: UserRole,
+    actor_id_field: str = "actor_id",
+) -> ActorContext:
+    try:
+        return actor_from_payload(
+            payload,
+            default_actor_id=default_actor_id,
+            default_role=default_role,
+            actor_id_field=actor_id_field,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _require_or_http(*, actor: ActorContext, minimum_role: UserRole, action: str) -> None:
+    try:
+        require_minimum_role(actor, minimum_role, action=action)
+    except AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc

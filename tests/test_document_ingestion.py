@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import sqlite3
@@ -18,6 +20,7 @@ warnings.filterwarnings(
 )
 from fastapi.testclient import TestClient
 
+from lingshu_domain import SchemaValidationError
 from lingshu_nexus.api.main import create_app
 from lingshu_nexus.documents import (
     CompositeDocumentParser,
@@ -35,7 +38,6 @@ from lingshu_nexus.persistence.object_store import (
     InMemoryObjectStore,
     LocalFilesystemObjectStore,
 )
-from lingshu_domain import SchemaValidationError
 
 
 class DocumentIngestionTestCase(unittest.TestCase):
@@ -48,11 +50,11 @@ class DocumentIngestionTestCase(unittest.TestCase):
                     filename="tvns-note.md",
                     media_type="text/markdown",
                     content=(
-                        "# taVNS sleep study\n\n"
-                        "First paragraph about cymba conchae stimulation.\n\n"
-                        "## Outcomes\n\n"
-                        "Sleep quality improved in the fixture text.\n"
-                    ).encode("utf-8"),
+                        b"# taVNS sleep study\n\n"
+                        b"First paragraph about cymba conchae stimulation.\n\n"
+                        b"## Outcomes\n\n"
+                        b"Sleep quality improved in the fixture text.\n"
+                    ),
                     topic_tags=("tVNS",),
                 ),
             ),
@@ -305,6 +307,26 @@ class DocumentIngestionTestCase(unittest.TestCase):
         upload_payload = upload_response.json()
         self.assertEqual(upload_payload["results"][0]["status"], "PARSED")
 
+    def test_fastapi_batch_upload_rejects_read_only_role(self) -> None:
+        service, _, _ = _service()
+        app = create_app()
+        app.state.document_service = service
+        client = TestClient(app)
+
+        upload_response = client.post(
+            "/api/v1/domains/acupuncture/documents:batch-upload",
+            files={
+                "files": (
+                    "read-only-fixture.md",
+                    b"# Read only\n\nUpload should be forbidden.",
+                    "text/markdown",
+                )
+            },
+            data={"actor_id": "readonly-ui", "actor_role": "read_only"},
+        )
+
+        self.assertEqual(upload_response.status_code, 403)
+
 
 def _service(
     max_upload_bytes: int = 1024 * 1024,
@@ -343,8 +365,11 @@ def _minimal_pdf_bytes(lines: tuple[str, ...]) -> bytes:
             b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
         ),
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n"
-        + stream + b"\nendstream",
+        b"<< /Length "
+        + str(len(stream)).encode("ascii")
+        + b" >>\nstream\n"
+        + stream
+        + b"\nendstream",
     ]
     pdf = bytearray(b"%PDF-1.4\n")
     offsets = [0]

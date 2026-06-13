@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import json
@@ -14,8 +16,8 @@ from lingshu_domain import ReviewStatus
 from lingshu_nexus.config.settings import Settings
 from lingshu_nexus.documents import (
     CompositeDocumentParser,
-    DocumentRecord,
     DocumentIngestService,
+    DocumentRecord,
     DocumentUpload,
     InMemoryDocumentRepository,
     MarkdownDocumentParser,

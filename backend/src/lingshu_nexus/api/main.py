@@ -17,6 +17,7 @@ from lingshu_nexus.chat import create_chat_service
 from lingshu_nexus.config.settings import get_settings
 from lingshu_nexus.documents import create_document_service
 from lingshu_nexus.extraction import MiMoProvider
+from lingshu_nexus.observability import ObservabilityRecorder
 from lingshu_nexus.persistence.object_store import LocalFilesystemObjectStore
 from lingshu_nexus.retrieval import create_retrieval_service
 from lingshu_nexus.review import create_review_release_service
@@ -39,10 +40,12 @@ def create_app() -> FastAPI:
             allow_methods=["GET", "POST", "OPTIONS"],
             allow_headers=["content-type"],
         )
+    app.state.observability = ObservabilityRecorder()
     object_store = LocalFilesystemObjectStore(settings.object_storage_local_path)
     app.state.document_service = create_document_service(
         object_store=object_store,
         max_upload_bytes=settings.document_max_upload_bytes,
+        observability=app.state.observability,
     )
     app.state.review_release_service = create_review_release_service(object_store=object_store)
     app.state.source_update_service = create_source_update_service(
@@ -50,6 +53,7 @@ def create_app() -> FastAPI:
         document_service=app.state.document_service,
         review_service=app.state.review_release_service,
         provider=MiMoProvider.from_settings(settings),
+        observability=app.state.observability,
     )
     app.state.retrieval_service = create_retrieval_service(
         release_reader=app.state.review_release_service

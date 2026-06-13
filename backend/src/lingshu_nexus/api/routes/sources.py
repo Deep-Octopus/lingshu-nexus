@@ -9,6 +9,15 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, 
 from lingshu_domain import DEFAULT_DOMAIN_ID
 from lingshu_domain.validation import SchemaValidationError
 from lingshu_nexus.documents import DocumentUpload
+from lingshu_nexus.observability import mask_sensitive_config
+from lingshu_nexus.security import (
+    ActorContext,
+    AuthorizationError,
+    actor_from_form,
+    actor_from_payload,
+    require_minimum_role,
+)
+from lingshu_nexus.skills import UserRole
 from lingshu_nexus.sources import (
     SourceArtifactRecord,
     SourceConfigNotFoundError,
@@ -48,6 +57,12 @@ async def upsert_source(
     service: Annotated[SourceUpdateService, Depends(get_source_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id="admin-ui",
+        default_role=UserRole.ADMIN,
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.ADMIN, action="manage data sources")
     try:
         source = service.upsert_source(
             domain_id=domain_id,
@@ -58,7 +73,8 @@ async def upsert_source(
             schedule=_schedule_from_payload(_optional_dict(payload, "schedule") or {}),
             enabled=bool(payload.get("enabled", True)),
             max_attempts=int(payload.get("max_attempts", 3)),
-            actor_id=_required_text(payload, "actor_id"),
+            actor_id=actor.actor_id,
+            actor_role=actor.role.value,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -74,11 +90,17 @@ async def sync_source(
     service: Annotated[SourceUpdateService, Depends(get_source_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id="admin-ui",
+        default_role=UserRole.ADMIN,
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.ADMIN, action="sync data sources")
     try:
         result = service.sync_source(
             domain_id=domain_id,
             source_id=source_id,
-            actor_id=_required_text(payload, "actor_id"),
+            actor_id=actor.actor_id,
             window_start=_optional_text(payload, "window_start"),
             window_end=_optional_text(payload, "window_end"),
             cursor=_optional_text(payload, "cursor"),
@@ -97,11 +119,17 @@ async def retry_source_run(
     service: Annotated[SourceUpdateService, Depends(get_source_service)],
     domain_id: Annotated[str, Query()] = DEFAULT_DOMAIN_ID,
 ) -> dict[str, object]:
+    actor = _actor_from_payload_or_http(
+        payload,
+        default_actor_id="admin-ui",
+        default_role=UserRole.ADMIN,
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.ADMIN, action="retry data source runs")
     try:
         result = service.retry_run(
             domain_id=domain_id,
             run_id=run_id,
-            actor_id=_required_text(payload, "actor_id"),
+            actor_id=actor.actor_id,
         )
     except SourceRunNotFoundError as exc:
         raise HTTPException(status_code=404, detail="SourceSyncRun not found") from exc
@@ -146,8 +174,16 @@ async def manual_source_sync(
     domain_id: str,
     files: Annotated[list[UploadFile], File(description="PDF or Markdown files")],
     service: Annotated[SourceUpdateService, Depends(get_source_service)],
-    actor_id: Annotated[str, Form()] = "admin-ui",
+    actor_id: Annotated[str, Form()] = "researcher-ui",
+    actor_role: Annotated[str, Form()] = UserRole.RESEARCHER.value,
 ) -> dict[str, object]:
+    actor = _actor_from_form_or_http(
+        actor_id=actor_id,
+        actor_role=actor_role,
+        default_actor_id="researcher-ui",
+        default_role=UserRole.RESEARCHER,
+    )
+    _require_or_http(actor=actor, minimum_role=UserRole.RESEARCHER, action="manual source sync")
     uploads: list[DocumentUpload] = []
     for file in files:
         uploads.append(
@@ -160,7 +196,8 @@ async def manual_source_sync(
     try:
         result = service.sync_manual_files(
             domain_id=domain_id,
-            actor_id=actor_id,
+            actor_id=actor.actor_id,
+            actor_role=actor.role.value,
             uploads=tuple(uploads),
         )
     except SourceUpdateError as exc:
@@ -190,7 +227,7 @@ def _source_payload(source: SourceConnectorConfig) -> dict[str, object]:
             "timezone": source.schedule.timezone,
             "next_cursor": source.schedule.next_cursor,
         },
-        "config": source.config,
+        "config": mask_sensitive_config(source.config),
         "created_by": source.created_by,
         "created_at": source.created_at,
         "updated_at": source.updated_at,
@@ -290,3 +327,44 @@ def _optional_int(payload: dict[str, Any], field_name: str) -> int | None:
     if isinstance(value, str):
         return int(value)
     raise HTTPException(status_code=422, detail=f"{field_name} must be an integer")
+
+
+def _actor_from_payload_or_http(
+    payload: dict[str, Any],
+    *,
+    default_actor_id: str,
+    default_role: UserRole,
+) -> ActorContext:
+    try:
+        return actor_from_payload(
+            payload,
+            default_actor_id=default_actor_id,
+            default_role=default_role,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _actor_from_form_or_http(
+    *,
+    actor_id: str,
+    actor_role: str,
+    default_actor_id: str,
+    default_role: UserRole,
+) -> ActorContext:
+    try:
+        return actor_from_form(
+            actor_id=actor_id,
+            actor_role=actor_role,
+            default_actor_id=default_actor_id,
+            default_role=default_role,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _require_or_http(*, actor: ActorContext, minimum_role: UserRole, action: str) -> None:
+    try:
+        require_minimum_role(actor, minimum_role, action=action)
+    except AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc

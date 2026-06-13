@@ -167,7 +167,8 @@ class LocalFilesystemObjectStore:
 
     def get(self, ref: ObjectRef, *, domain_id: str) -> bytes:
         self._require_ref_domain(ref, domain_id)
-        return self._content_path(ref.domain_id, ref.layer, ref.object_key, ref.version).read_bytes()
+        path = self._content_path(ref.domain_id, ref.layer, ref.object_key, ref.version)
+        return path.read_bytes()
 
     def record_for(self, ref: ObjectRef, *, domain_id: str) -> StoredObjectRecord:
         self._require_ref_domain(ref, domain_id)

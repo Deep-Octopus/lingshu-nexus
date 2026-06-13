@@ -23,8 +23,8 @@ from lingshu_domain.evidence import (
     ReviewStatus,
     SourceChunk,
     SourceDocument,
-    SourceQualityTier,
     SourceQualitySignals,
+    SourceQualityTier,
     Study,
     StudyType,
 )

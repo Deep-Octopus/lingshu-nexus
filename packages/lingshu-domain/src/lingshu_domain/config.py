@@ -81,4 +81,3 @@ ACUPUNCTURE_DOMAIN = build_domain_config(
     ),
     default_topic_tags=("tVNS", "taVNS"),
 )
-

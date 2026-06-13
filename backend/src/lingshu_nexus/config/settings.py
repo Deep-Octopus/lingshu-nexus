@@ -24,7 +24,9 @@ class Settings:
     mimo_model_id: str = "replace-with-mimo-model-id"
     mimo_extraction_model_id: str = ""
     mimo_chat_model_id: str = ""
-    database_url: str = "postgresql://lingshu:change-me-postgres-password@localhost:5432/lingshu_nexus"
+    database_url: str = (
+        "postgresql://lingshu:change-me-postgres-password@localhost:5432/lingshu_nexus"
+    )
     redis_url: str = "redis://localhost:6379/0"
     object_storage_endpoint: str = "http://localhost:9000"
     object_storage_bucket: str = "lingshu-documents"

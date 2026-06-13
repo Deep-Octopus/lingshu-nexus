@@ -123,6 +123,7 @@ class ReviewReleaseService:
         assertion_id: str,
         reviewer: str,
         reason: str,
+        actor_role: str | None = None,
     ) -> EvidenceAssertion:
         return self._decide_assertion(
             domain_id=domain_id,
@@ -131,6 +132,7 @@ class ReviewReleaseService:
             reason=reason,
             decision=ReviewDecisionKind.APPROVE,
             status=ReviewStatus.APPROVED,
+            actor_role=actor_role,
         )
 
     def reject_assertion(
@@ -140,6 +142,7 @@ class ReviewReleaseService:
         assertion_id: str,
         reviewer: str,
         reason: str,
+        actor_role: str | None = None,
     ) -> EvidenceAssertion:
         return self._decide_assertion(
             domain_id=domain_id,
@@ -148,6 +151,7 @@ class ReviewReleaseService:
             reason=reason,
             decision=ReviewDecisionKind.REJECT,
             status=ReviewStatus.REJECTED,
+            actor_role=actor_role,
         )
 
     def modify_assertion(
@@ -165,6 +169,7 @@ class ReviewReleaseService:
         outcome: str | None = None,
         metadata_updates: dict[str, Any] | None = None,
         approve: bool = True,
+        actor_role: str | None = None,
     ) -> EvidenceAssertion:
         assertion = self._repository.get_assertion(domain_id=domain_id, assertion_id=assertion_id)
         metadata = dict(assertion.metadata)
@@ -193,6 +198,7 @@ class ReviewReleaseService:
             reviewer=reviewer,
             reason=reason,
             decision=ReviewDecisionKind.MODIFY,
+            actor_role=actor_role,
         )
 
     def mark_conflict(
@@ -203,6 +209,7 @@ class ReviewReleaseService:
         reviewer: str,
         reason: str,
         conflict_with_assertion_ids: tuple[str, ...],
+        actor_role: str | None = None,
     ) -> EvidenceAssertion:
         if not conflict_with_assertion_ids:
             raise ReviewWorkflowError("conflict_with_assertion_ids must not be empty")
@@ -222,6 +229,7 @@ class ReviewReleaseService:
             reviewer=reviewer,
             reason=reason,
             decision=ReviewDecisionKind.MARK_CONFLICT,
+            actor_role=actor_role,
         )
 
     def preview_release(
@@ -284,6 +292,7 @@ class ReviewReleaseService:
         version: str,
         assertion_ids: tuple[str, ...],
         released_by: str,
+        actor_role: str | None = None,
     ) -> ReleaseRecord:
         require_domain_id(domain_id)
         require_text(version, "version")
@@ -316,7 +325,11 @@ class ReviewReleaseService:
             action="release.created",
             target_type="graph_release",
             target_id=release.id,
-            metadata={"version": version, "assertion_count": len(assertions)},
+            metadata={
+                "version": version,
+                "assertion_count": len(assertions),
+                "actor_role": actor_role,
+            },
         )
         return record
 
@@ -326,6 +339,7 @@ class ReviewReleaseService:
         domain_id: str,
         release_id: str,
         actor_id: str,
+        actor_role: str | None = None,
     ) -> GraphRelease:
         require_text(actor_id, "actor_id")
         release = self._repository.set_active_release(domain_id=domain_id, release_id=release_id)
@@ -335,7 +349,7 @@ class ReviewReleaseService:
             action="release.activated",
             target_type="graph_release",
             target_id=release_id,
-            metadata={"version": release.version},
+            metadata={"version": release.version, "actor_role": actor_role},
         )
         return release
 
@@ -346,6 +360,7 @@ class ReviewReleaseService:
         release_id: str,
         actor_id: str,
         reason: str,
+        actor_role: str | None = None,
     ) -> GraphRelease:
         require_text(reason, "reason")
         release = self._repository.set_active_release(domain_id=domain_id, release_id=release_id)
@@ -355,7 +370,7 @@ class ReviewReleaseService:
             action="release.rollback",
             target_type="graph_release",
             target_id=release_id,
-            metadata={"version": release.version, "reason": reason},
+            metadata={"version": release.version, "reason": reason, "actor_role": actor_role},
         )
         return release
 
@@ -476,6 +491,7 @@ class ReviewReleaseService:
         reason: str,
         decision: ReviewDecisionKind,
         status: ReviewStatus,
+        actor_role: str | None,
     ) -> EvidenceAssertion:
         assertion = self._repository.get_assertion(domain_id=domain_id, assertion_id=assertion_id)
         updated = replace(assertion, review_status=status)
@@ -485,6 +501,7 @@ class ReviewReleaseService:
             reviewer=reviewer,
             reason=reason,
             decision=decision,
+            actor_role=actor_role,
         )
 
     def _record_decision(
@@ -495,6 +512,7 @@ class ReviewReleaseService:
         reviewer: str,
         reason: str,
         decision: ReviewDecisionKind,
+        actor_role: str | None = None,
     ) -> EvidenceAssertion:
         require_text(reviewer, "reviewer")
         require_text(reason, "reason")
@@ -517,7 +535,7 @@ class ReviewReleaseService:
             action=f"assertion.{decision.value}",
             target_type="evidence_assertion",
             target_id=after.id,
-            metadata={"review_status": after.review_status.value},
+            metadata={"review_status": after.review_status.value, "actor_role": actor_role},
         )
         return after
 

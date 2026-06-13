@@ -53,7 +53,10 @@ TEXT_SUFFIXES = {
     ".sql",
 }
 SECRET_PATTERN = re.compile(r"(api[_-]?key|token|secret|password)", re.IGNORECASE)
-PLACEHOLDER_PATTERN = re.compile(r"(replace-with|change-me|example\.invalid|localhost)", re.IGNORECASE)
+PLACEHOLDER_PATTERN = re.compile(
+    r"(replace-with|change-me|example\.invalid|localhost)",
+    re.IGNORECASE,
+)
 
 
 def iter_files() -> Iterable[Path]:
@@ -128,7 +131,8 @@ def check_frontend_manifest() -> None:
 
 
 def lint() -> None:
-    if not run_external(["ruff", "check", *[str(path.relative_to(ROOT)) for path in PYTHON_DIRS if path.exists()]]):
+    targets = [str(path.relative_to(ROOT)) for path in PYTHON_DIRS if path.exists()]
+    if not run_external(["ruff", "check", *targets]):
         check_python_syntax()
         check_text_format()
     check_env_template()
@@ -136,7 +140,8 @@ def lint() -> None:
 
 
 def format_check() -> None:
-    if not run_external(["ruff", "format", "--check", *[str(path.relative_to(ROOT)) for path in PYTHON_DIRS if path.exists()]]):
+    targets = [str(path.relative_to(ROOT)) for path in PYTHON_DIRS if path.exists()]
+    if not run_external(["ruff", "format", "--check", *targets]):
         check_text_format()
 
 

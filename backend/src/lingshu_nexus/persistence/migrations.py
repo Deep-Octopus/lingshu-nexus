@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 MIGRATION_DIR = BACKEND_DIR / "migrations"
 
@@ -27,4 +26,3 @@ def load_migration_pair(name: str) -> MigrationPair:
         up_sql=up_path.read_text(encoding="utf-8"),
         down_sql=down_path.read_text(encoding="utf-8"),
     )
-

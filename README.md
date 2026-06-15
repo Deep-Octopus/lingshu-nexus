@@ -215,6 +215,25 @@ config responses mask secret references such as `env:SOURCE_TOKEN`, and inline
 secret-looking config keys are rejected. Structured observability events are
 kept in memory for V1 and sanitize metadata before logging or returning it.
 
+### V1 Acceptance Regression
+
+T-120 adds fixture-only evaluation assets under `evals/` and a repeatable local
+acceptance command:
+
+```bash
+env UV_CACHE_DIR=.uv-cache uv run python scripts/run_v1_acceptance.py
+```
+
+The command covers document parsing, candidate Schema validation, review and
+release governance, active-release retrieval, both built-in read-only Skills,
+SSE citations, RBAC, audit, candidate-layer isolation, rollback, SourceConnector
+regression, and the frontend production build.
+
+These assets prove workflow behavior only. Real acupuncture/tVNS acceptance
+still requires authorized source files, expert-reviewed expected citations, and
+a usable MiMo configuration; fixture results must not be presented as medical
+evidence or model-quality measurements. See `docs/v1-acceptance-record.md`.
+
 ## Worker
 
 The worker entrypoint is a placeholder for future queue tasks:

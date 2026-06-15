@@ -1,0 +1,96 @@
+{
+  "fixture_only": true,
+  "entities": [
+    {
+      "type": "intervention",
+      "text": "taVNS",
+      "original_text": "taVNS"
+    },
+    {
+      "type": "outcome",
+      "text": "PSQI sleep quality"
+    },
+    {
+      "type": "safety",
+      "text": "candidate-only dizziness"
+    }
+  ],
+  "relations": [
+    {
+      "id": "eval_relation_sleep_parameters",
+      "subject": {
+        "type": "intervention",
+        "text": "taVNS"
+      },
+      "predicate": "affects_outcome",
+      "object": {
+        "type": "outcome",
+        "text": "PSQI sleep quality"
+      },
+      "source_chunk_indexes": [0],
+      "confidence": 0.93
+    }
+  ],
+  "evidence_assertions": [
+    {
+      "id": "eval_assertion_sleep_parameters",
+      "subject": {
+        "type": "intervention",
+        "text": "taVNS",
+        "original_text": "taVNS"
+      },
+      "predicate": "affects_outcome",
+      "object": {
+        "type": "outcome",
+        "text": "PSQI sleep quality"
+      },
+      "source_chunk_indexes": [0],
+      "population": "adults with insomnia symptoms",
+      "parameter_set": {
+        "stimulation_site": "Cymba Conchae",
+        "frequency_hz": 25,
+        "pulse_width_us": 250,
+        "sham_control": "not specified in fixture",
+        "raw_text": "Cymba Conchae 25 Hz 250 us"
+      },
+      "outcome": "PSQI",
+      "direction": "improved",
+      "extraction_confidence": 0.93,
+      "source_quality_signals": {
+        "tier": "database_other",
+        "source_type": "synthetic_fixture"
+      },
+      "metadata": {
+        "fixture_only": true
+      }
+    },
+    {
+      "id": "eval_assertion_candidate_only",
+      "subject": {
+        "type": "intervention",
+        "text": "taVNS",
+        "original_text": "taVNS"
+      },
+      "predicate": "has_safety_event",
+      "object": {
+        "type": "safety",
+        "text": "candidate-only dizziness"
+      },
+      "source_chunk_indexes": [1],
+      "direction": "unclear",
+      "extraction_confidence": 0.71,
+      "source_quality_signals": {
+        "tier": "background_only",
+        "source_type": "synthetic_fixture"
+      },
+      "metadata": {
+        "fixture_only": true,
+        "must_remain_unpublished": true
+      }
+    }
+  ],
+  "study": {
+    "study_type": "synthetic_fixture",
+    "fixture_only": true
+  }
+}

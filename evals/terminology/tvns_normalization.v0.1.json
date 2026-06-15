@@ -1,0 +1,62 @@
+{
+  "domain_id": "acupuncture",
+  "fixture_only": true,
+  "cases": [
+    {
+      "input": "Cymba Conchae",
+      "concept_type": "stimulation_site",
+      "expected_concept_id": "site:cymba_conchae",
+      "expected_preferred_name": "耳甲艇",
+      "expected_status": "suggested"
+    },
+    {
+      "input": "cavum conchae",
+      "concept_type": "stimulation_site",
+      "expected_concept_id": "site:cavum_conchae",
+      "expected_preferred_name": "耳甲腔",
+      "expected_status": "suggested"
+    },
+    {
+      "input": "concha cavity",
+      "concept_type": "stimulation_site",
+      "expected_concept_id": "site:cavum_conchae",
+      "expected_preferred_name": "耳甲腔",
+      "expected_status": "suggested"
+    },
+    {
+      "input": "cavity of auricular concha",
+      "concept_type": "stimulation_site",
+      "expected_concept_id": "site:cavum_conchae",
+      "expected_preferred_name": "耳甲腔",
+      "expected_status": "suggested"
+    },
+    {
+      "input": "tragus",
+      "concept_type": "stimulation_site",
+      "expected_concept_id": "site:tragus",
+      "expected_preferred_name": "耳屏",
+      "expected_status": "suggested"
+    },
+    {
+      "input": "depression",
+      "concept_type": "disease_or_symptom",
+      "expected_concept_id": "condition:depression",
+      "expected_preferred_name": "抑郁症/抑郁",
+      "expected_status": "needs_review"
+    },
+    {
+      "input": "blues",
+      "concept_type": "disease_or_symptom",
+      "expected_concept_id": "condition:blues",
+      "expected_preferred_name": "情绪低落/轻微抑郁",
+      "expected_status": "needs_review"
+    },
+    {
+      "input": "Postpartum blues",
+      "concept_type": "disease_or_symptom",
+      "expected_concept_id": "condition:blues",
+      "expected_preferred_name": "情绪低落/轻微抑郁",
+      "expected_status": "needs_review"
+    }
+  ]
+}

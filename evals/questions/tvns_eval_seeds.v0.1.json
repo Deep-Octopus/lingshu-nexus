@@ -1,0 +1,98 @@
+{
+  "domain_id": "acupuncture",
+  "scenario_id": "tVNS",
+  "fixture_only": true,
+  "status": "seed",
+  "questions": [
+    {
+      "id": "tvns-sleep-parameters",
+      "category": "sleep_intervention_parameters",
+      "question": "tVNS 用于失眠研究时，已发布证据中报告了哪些刺激部位、频率和脉宽？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "covered",
+      "skill_id": "evidence-query",
+      "locator_contains": "Published fixture evidence"
+    },
+    {
+      "id": "tvns-frequency-effects",
+      "category": "frequency_effects",
+      "question": "不同 tVNS 刺激频率对研究结局的影响有何差异？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only"
+    },
+    {
+      "id": "tvns-safety",
+      "category": "contraindications_safety",
+      "question": "tVNS 研究报告了哪些禁忌症、不良反应和安全注意事项？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only"
+    },
+    {
+      "id": "tvns-protocol-outcomes",
+      "category": "study_protocol_parameters_outcomes",
+      "question": "设计 tVNS 研究方案时需要记录哪些刺激参数、对照设置和结局指标？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only"
+    },
+    {
+      "id": "tvns-sleep-mechanism",
+      "category": "sleep_mechanism",
+      "question": "已发布研究如何解释 tVNS 改善睡眠的可能机制？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only"
+    },
+    {
+      "id": "tvns-cross-indication-mechanism",
+      "category": "cross_indication_mechanism",
+      "question": "精神、神经和疼痛适应症中的 tVNS 机制证据有哪些差异？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only"
+    },
+    {
+      "id": "tvns-rct-design",
+      "category": "rct_design",
+      "question": "tVNS 随机对照试验通常如何设置分组、盲法、纳排标准和 sham 对照？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only",
+      "skill_id": "literature-landscape"
+    },
+    {
+      "id": "tvns-non-behavioral-measures",
+      "category": "non_behavioral_measures",
+      "question": "除行为学量表外，tVNS 研究使用了哪些生理、影像或其他客观指标？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only"
+    },
+    {
+      "id": "tvns-regional-focus",
+      "category": "regional_research_focus",
+      "question": "国内外 tVNS 研究的疾病、参数和方法学侧重点有何不同？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only",
+      "skill_id": "literature-landscape"
+    },
+    {
+      "id": "tvns-timeline",
+      "category": "timeline_literature",
+      "question": "按时间列出 active release 中与 tVNS 睡眠研究相关的文献。",
+      "expected_behavior": "citation_required",
+      "fixture_status": "covered",
+      "skill_id": "literature-landscape"
+    },
+    {
+      "id": "tvns-three-year-trends",
+      "category": "recent_three_year_trends",
+      "question": "近三年 tVNS 研究的主题、参数和结局趋势是什么？",
+      "expected_behavior": "citation_required",
+      "fixture_status": "seed_only",
+      "skill_id": "literature-landscape"
+    },
+    {
+      "id": "tvns-no-unified-standard",
+      "category": "no_unified_standard",
+      "question": "是否已经存在统一且最优的 tVNS 刺激方案？",
+      "expected_behavior": "insufficient_evidence_without_consensus",
+      "fixture_status": "seed_only"
+    }
+  ]
+}

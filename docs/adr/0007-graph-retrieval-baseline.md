@@ -45,3 +45,17 @@ would add network/dependency risk before a measurable evaluation set exists.
 - Lexical retrieval is a baseline, not the final ranking strategy. It will miss
   semantic paraphrases until vector or GraphRAG retrieval is introduced behind
   the same `RetrievalService` port.
+
+## T-120 Review (2026-06-15)
+
+T-120 now provides fixed fixture queries, boundary cases, and an end-to-end
+acceptance regression. This set proves active-release filtering, citation
+integrity, candidate isolation, Skill routing, and rollback, but it is synthetic
+and cannot measure real-domain semantic recall or answer quality.
+
+Because authorized real literature and expert-reviewed citation expectations are
+still unavailable, there is no evidence that a vector retriever or additional
+GraphRAG engine would improve V1 enough to justify a new dependency. The lexical
+baseline remains the V1 implementation. Re-evaluate this decision only after the
+real T-120 benchmark can compare recall, citation accuracy, latency, cost, and
+operational complexity on the same corpus.

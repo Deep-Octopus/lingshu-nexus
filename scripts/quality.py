@@ -28,6 +28,7 @@ SCAN_DIRS = [
     ROOT / "frontend",
     ROOT / "config",
     ROOT / "docs",
+    ROOT / "evals",
     ROOT / "scripts",
     ROOT / "tests",
 ]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from lingshu_domain import DEFAULT_DOMAIN_ID
 from lingshu_domain.validation import SchemaValidationError
@@ -97,7 +98,8 @@ async def sync_source(
     )
     _require_or_http(actor=actor, minimum_role=UserRole.ADMIN, action="sync data sources")
     try:
-        result = service.sync_source(
+        result = await run_in_threadpool(
+            service.sync_source,
             domain_id=domain_id,
             source_id=source_id,
             actor_id=actor.actor_id,
@@ -126,7 +128,8 @@ async def retry_source_run(
     )
     _require_or_http(actor=actor, minimum_role=UserRole.ADMIN, action="retry data source runs")
     try:
-        result = service.retry_run(
+        result = await run_in_threadpool(
+            service.retry_run,
             domain_id=domain_id,
             run_id=run_id,
             actor_id=actor.actor_id,
@@ -194,7 +197,8 @@ async def manual_source_sync(
             )
         )
     try:
-        result = service.sync_manual_files(
+        result = await run_in_threadpool(
+            service.sync_manual_files,
             domain_id=domain_id,
             actor_id=actor.actor_id,
             actor_role=actor.role.value,

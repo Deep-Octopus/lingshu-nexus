@@ -298,7 +298,10 @@ class SourceUpdateService:
                 domain_id=config.domain_id,
                 idempotency_key=idempotency_key,
             )
-            if duplicate is not None:
+            if duplicate is not None and duplicate.status not in {
+                SourceArtifactStatus.PARSE_FAILED,
+                SourceArtifactStatus.EXTRACTION_FAILED,
+            }:
                 duplicate_count += 1
                 artifact_records.append(
                     SourceArtifactRecord(
@@ -374,26 +377,32 @@ class SourceUpdateService:
                 continue
             document = upload_result.document
             if upload_result.duplicate:
-                duplicate_count += 1
-                artifact_records.append(
-                    SourceArtifactRecord(
-                        id=f"source_artifact_{uuid4().hex}",
+                if duplicate is not None and duplicate.status is SourceArtifactStatus.PARSE_FAILED:
+                    document = self._document_service.reprocess(
                         domain_id=config.domain_id,
-                        source_id=config.id,
-                        run_id=run_id,
-                        kind=artifact.kind,
-                        status=SourceArtifactStatus.DUPLICATE_SKIPPED,
-                        idempotency_key=idempotency_key,
-                        raw_object_ref=raw_ref,
-                        external_id=artifact.external_id,
-                        filename=artifact.filename,
-                        source_uri=artifact.source_uri,
                         document_id=document.id,
-                        message="Duplicate document content hash; skipped extraction",
-                        metadata=artifact.metadata,
                     )
-                )
-                continue
+                elif duplicate is None or duplicate.status is not SourceArtifactStatus.EXTRACTION_FAILED:
+                    duplicate_count += 1
+                    artifact_records.append(
+                        SourceArtifactRecord(
+                            id=f"source_artifact_{uuid4().hex}",
+                            domain_id=config.domain_id,
+                            source_id=config.id,
+                            run_id=run_id,
+                            kind=artifact.kind,
+                            status=SourceArtifactStatus.DUPLICATE_SKIPPED,
+                            idempotency_key=idempotency_key,
+                            raw_object_ref=raw_ref,
+                            external_id=artifact.external_id,
+                            filename=artifact.filename,
+                            source_uri=artifact.source_uri,
+                            document_id=document.id,
+                            message="Duplicate document content hash; skipped extraction",
+                            metadata=artifact.metadata,
+                        )
+                    )
+                    continue
             document_ids.append(document.id)
             if document.status is not DocumentStatus.PARSED:
                 failed_count += 1
@@ -437,6 +446,27 @@ class SourceUpdateService:
                         document_id=document.id,
                         candidate_run_id=extraction_run.id,
                         message=extraction_run.failure_reason or "Candidate extraction failed",
+                        metadata=artifact.metadata,
+                    )
+                )
+                continue
+            if not extraction_run.evidence_assertions:
+                artifact_records.append(
+                    SourceArtifactRecord(
+                        id=f"source_artifact_{uuid4().hex}",
+                        domain_id=config.domain_id,
+                        source_id=config.id,
+                        run_id=run_id,
+                        kind=artifact.kind,
+                        status=SourceArtifactStatus.NO_EVIDENCE_FOUND,
+                        idempotency_key=idempotency_key,
+                        raw_object_ref=raw_ref,
+                        external_id=artifact.external_id,
+                        filename=artifact.filename,
+                        source_uri=artifact.source_uri,
+                        document_id=document.id,
+                        candidate_run_id=extraction_run.id,
+                        message=_no_evidence_message(extraction_run.study_metadata),
                         metadata=artifact.metadata,
                     )
                 )
@@ -760,6 +790,13 @@ def _impact_hints(
                     }
                 )
     return hints
+
+
+def _no_evidence_message(study_metadata: dict[str, Any]) -> str:
+    reason = study_metadata.get("no_evidence_reason")
+    if isinstance(reason, str) and reason.strip():
+        return f"Parsed successfully; no reviewable evidence found: {reason.strip()}"
+    return "Parsed successfully; no source-grounded evidence assertions were found."
 
 
 def _same_assertion_target(left: EvidenceAssertion, right: EvidenceAssertion) -> bool:

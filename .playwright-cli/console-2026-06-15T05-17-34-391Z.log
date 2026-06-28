@@ -1,0 +1,10 @@
+[ 5238496ms] [ERROR] Failed to load resource: net::ERR_NETWORK_CHANGED @ http://127.0.0.1:5175/api/v1/source-runs?domain_id=acupuncture:0
+[ 5238503ms] [ERROR] Failed to load resource: net::ERR_NETWORK_CHANGED @ http://127.0.0.1:5175/api/v1/admin/audit-events?domain_id=acupuncture:0
+[ 5238503ms] [ERROR] Failed to load resource: net::ERR_NETWORK_CHANGED @ http://127.0.0.1:5175/favicon.ico:0
+[ 5241210ms] [ERROR] Failed to load resource: net::ERR_NETWORK_CHANGED @ http://127.0.0.1:5175/api/v1/skills?domain_id=acupuncture:0
+[ 5290890ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5175/api/v1/admin/overview?domain_id=acupuncture:0
+[ 5290896ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5175/api/v1/documents?domain_id=acupuncture:0
+[ 5290897ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5175/api/v1/review-assertions?domain_id=acupuncture:0
+[ 5290901ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5175/api/v1/domains/acupuncture/releases:0
+[ 5290904ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5175/api/v1/sources?domain_id=acupuncture:0
+[ 5290905ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5175/api/v1/admin/jobs?domain_id=acupuncture:0

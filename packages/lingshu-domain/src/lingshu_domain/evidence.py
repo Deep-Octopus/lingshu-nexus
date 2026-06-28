@@ -16,6 +16,7 @@ from lingshu_domain.validation import (
 
 
 class ConceptType(StrEnum):
+    # Acupuncture domain types
     DISEASE_OR_SYMPTOM = "disease_or_symptom"
     ACUPOINT = "acupoint"
     ACUPOINT_COMBINATION = "acupoint_combination"
@@ -28,6 +29,27 @@ class ConceptType(StrEnum):
     MECHANISM = "mechanism"
     POPULATION = "population"
 
+    # Addiction domain types
+    ADDICTIVE_DISORDER = "addictive_disorder"
+    SUBSTANCE = "substance"
+    BEHAVIORAL_ADDICTION = "behavioral_addiction"
+    PSYCHOLOGICAL_INTERVENTION = "psychological_intervention"
+    PHYSICAL_INTERVENTION = "physical_intervention"
+    DIGITAL_INTERVENTION = "digital_intervention"
+    INTERVENTION_PARAMETER = "intervention_parameter"
+    OUTCOME_MEASURE = "outcome_measure"
+    CRAVING_MEASURE = "craving_measure"
+    WITHDRAWAL_SYMPTOM = "withdrawal_symptom"
+    RELAPSE_MEASURE = "relapse_measure"
+    ADVERSE_EVENT = "adverse_event"
+    CONTROL_CONDITION = "control_condition"
+    STUDY_DESIGN = "study_design"
+    FOLLOWUP_PERIOD = "followup_period"
+
+    # Cross-domain types for observational / qualitative research
+    BARRIER = "barrier"
+    RISK_FACTOR = "risk_factor"
+
 
 class ConceptStatus(StrEnum):
     DRAFT = "draft"
@@ -37,6 +59,7 @@ class ConceptStatus(StrEnum):
 
 
 class PredicateType(StrEnum):
+    # Acupuncture domain predicates
     AFFECTS_OUTCOME = "affects_outcome"
     TREATS = "treats"
     HAS_PARAMETER = "has_parameter"
@@ -48,6 +71,19 @@ class PredicateType(StrEnum):
     COMPARED_WITH = "compared_with"
     MENTIONED_IN = "mentioned_in"
     RELATED_TO = "related_to"
+
+    # Addiction domain predicates
+    REDUCES_SYMPTOM = "reduces_symptom"
+    IMPROVES_OUTCOME = "improves_outcome"
+    REDUCES_CRAVING = "reduces_craving"
+    REDUCES_RELAPSE = "reduces_relapse"
+    REDUCES_WITHDRAWAL = "reduces_withdrawal"
+    HAS_ADVERSE_EVENT = "has_adverse_event"
+    HAS_FOLLOWUP = "has_followup"
+    TARGETS_POPULATION = "targets_population"
+    USES_CONTROL = "uses_control"
+    HAS_STUDY_DESIGN = "has_study_design"
+    ASSOCIATED_WITH = "associated_with"
 
 
 class Direction(StrEnum):
@@ -141,6 +177,7 @@ class SourceQualitySignals:
 
 @dataclass(frozen=True)
 class ParameterSet:
+    # Acupuncture/tVNS specific parameters (backward compatible)
     stimulation_site: str | None = None
     frequency_hz: float | None = None
     pulse_width_us: float | None = None
@@ -150,6 +187,22 @@ class ParameterSet:
     waveform: str | None = None
     dose: str | None = None
     sham_control: str | None = None
+
+    # Addiction intervention common parameters
+    intervention_type: str | None = None
+    delivery_format: str | None = None
+    session_frequency: str | None = None
+    total_duration_weeks: float | None = None
+    total_sessions: int | None = None
+    therapist_qualification: str | None = None
+    delivery_setting: str | None = None
+    dose_response: str | None = None
+    adherence_rate: float | None = None
+    control_condition: str | None = None
+    followup_period_months: float | None = None
+    abstinence_definition: str | None = None
+
+    # Generic raw text
     raw_text: str | None = None
 
     def __post_init__(self) -> None:
@@ -157,9 +210,15 @@ class ParameterSet:
             ("frequency_hz", self.frequency_hz),
             ("pulse_width_us", self.pulse_width_us),
             ("duration_minutes", self.duration_minutes),
+            ("total_duration_weeks", self.total_duration_weeks),
+            ("total_sessions", self.total_sessions),
+            ("adherence_rate", self.adherence_rate),
+            ("followup_period_months", self.followup_period_months),
         ):
             if value is not None and value < 0:
                 raise SchemaValidationError(f"{field_name} must be >= 0")
+        if self.adherence_rate is not None and self.adherence_rate > 1:
+            raise SchemaValidationError("adherence_rate must be between 0 and 1")
 
 
 @dataclass(frozen=True)

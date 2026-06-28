@@ -1,9 +1,9 @@
 # 灵枢智衡 (LingShu Nexus) V1 项目 TODO 与 Codex 实现规则
 
-> 文档用途：本文件是后续 Codex 实现本项目时的主要执行依据，用于约束范围、拆分工作、核对产物与验收完成度。  
-> 当前状态：P0 工程闭环与 fixture 回归已实现；真实语料和 live provider 验收仍受外部输入阻塞。
-> 更新日期：2026-06-15
-> 关联方案：[基础版本产品化实施方案.md](./基础版本产品化实施方案.md)  
+> 文档用途：本文件是后续 Codex 实现本项目时的主要执行依据，用于约束范围、拆分工作、核对产物与验收完成度。
+> 当前状态：P0 工程闭环与 fixture 回归已实现；生产化持久化、任务队列、真实鉴权、Neo4j/检索、可观测与部署仍待补齐。
+> 更新日期：2026-06-28
+> 关联方案：[基础版本产品化实施方案.md](./基础版本产品化实施方案.md)
 > 外部资料清单：[请导师提供的项目资料清单.md](./请导师提供的项目资料清单.md)、[请导师提供的项目资料清单（tVNS版本）.md](./请导师提供的项目资料清单（tVNS版本）.md)
 
 ---
@@ -69,7 +69,7 @@ PDF/Markdown 资料导入
    - 为什么现有依赖无法满足；
    - 许可证和维护风险；
    - 替换或移除路径。
-4. GraphRAG 候选先以一套 baseline 实现闭环；新增 Microsoft GraphRAG、LightRAG、KAG 等必须有评测收益依据。
+4. GraphRAG 主线固定为 Microsoft GraphRAG；V1.5 不并列维护第二套 GraphRAG/RAG 编排框架，未来替换必须另开任务和 ADR。
 5. 可参考现有开源实现的流程和组织方式，但不得未经许可证核验直接复制大段实现。
 
 ### 2.3 架构边界规则
@@ -180,7 +180,20 @@ PDF/Markdown 资料导入
 | T-100 | 增量更新与 SourceConnector | P0/P1 | `[?]` | T-030, T-050 |
 | T-110 | 权限、审计、安全与观测 | P0 | `[x]` | T-020 起贯穿实施 |
 | T-120 | 评测、回归与 V1 发布验收 | P0 | `[?]` | T-030 至 T-110 |
-| T-200 | 后续 GraphRAG/扩域/商用研究 | P1/P2 | `[ ]` | T-120 |
+| T-300 | 生产持久化与数据访问层 | P0 | `[ ]` | T-020 至 T-120 |
+| T-310 | 生产任务队列与异步流水线 | P0 | `[ ]` | T-030, T-040, T-100, T-300 |
+| T-320 | 真实认证、授权与租户/角色治理 | P0 | `[ ]` | T-110, T-300 |
+| T-330 | 生产对象存储、文件安全与解析增强 | P0 | `[ ]` | T-030, T-300, E-001 |
+| T-340 | Neo4j/向量/混合检索生产化 | P0/P1 | `[ ]` | T-050, T-060, T-120, T-300 |
+| T-345 | Microsoft GraphRAG 框架接入 | P1 | `[ ]` | T-340, E-003, E-001 |
+| T-350 | 模型调用网关、抽取质量与成本治理 | P0/P1 | `[ ]` | T-040, T-120, E-005 |
+| T-355 | 关系抽取成熟度专项优化 | P0/P1 | `[ ]` | T-030, T-040, T-050, E-001, E-003, E-005 |
+| T-356 | 多轮分级全文知识抽取流水线 | P0/P1 | `[ ]` | T-330, T-350, T-355 |
+| T-357 | 科研实验设计知识模型与 Skill | P1 | `[ ]` | T-340, T-345, T-356, E-003 |
+| T-360 | 可观测、审计留存与运维监控 | P0 | `[ ]` | T-110, T-300, T-310, T-350 |
+| T-370 | 部署、配置、备份与灾备 | P0 | `[ ]` | T-300 至 T-360 |
+| T-380 | 真实数据源 adapter 与数据合同 | P1 | `[?]` | T-100, E-006 |
+| T-390 | 生产验收、压测与安全测试 | P0 | `[ ]` | T-300 至 T-380 |
 
 ---
 
@@ -338,7 +351,7 @@ PDF/Markdown 资料导入
 - [x] 实现批量上传接口与文献列表/详情接口。
 - [x] 实现内容哈希、重复识别、文件类型/大小限制和状态流转。
 - [x] 实现 Markdown 确定性解析，生成带标题/段落 locator 的 chunks。
-- [x] 通过 `DocumentParser` adapter 接入 PDF 解析 baseline；真实中文复杂样例到位后优先验证 Docling，必要时比较 MinerU。
+- [x] 通过 `DocumentParser` adapter 接入 PDF 解析 baseline；生产解析增强固定进入 T-330 的 Docling/OCR 流水线。
 - [x] 保存原文件、parser 版本、解析结果、失败原因和重跑记录。
 - [x] 建立可验证 API 展示处理状态；管理页面留到 T-090。
 
@@ -385,7 +398,7 @@ PDF/Markdown 资料导入
   - `make quality PYTHON=.venv/bin/python` 通过，当前共 24 个 unittest 通过。
 - 未覆盖风险（若有）：
   - 首批真实针灸/tVNS PDF/MD 文件仍为外部输入 `[?]`，因此尚未记录真实语料解析成功率和失败样例。
-  - 当前 PDF baseline 面向文本层 PDF；复杂版面、扫描件、表格和 OCR 未声明完成，待真实中文样例到位后按 ADR 0004 优先评估 Docling，必要时比较 MinerU。
+  - 当前 PDF baseline 面向文本层 PDF；复杂版面、扫描件、表格和 OCR 未声明完成，待真实中文样例到位后按 T-330 的 Docling/OCR 流水线补齐。
   - 文档元数据 repository 当前仍是 in-memory adapter；0002 迁移已记录 PostgreSQL 表形，真实 ORM/PostgreSQL repository 留到后续持久化集成。
 
 ---
@@ -854,15 +867,407 @@ PDF/Markdown 资料导入
 
 ---
 
-## 7. P1/P2 候选任务
+## 7. 生产化 TODO（V1.5）
+
+目标：把当前可执行 fixture/demo 基线升级为可在生产环境长期运行、可恢复、可审计、可扩容的内部科研证据平台。以下任务优先复用成熟框架和托管组件，不重复造轮子；但 Evidence Schema、候选/发布隔离、审核决策、release 版本和引用边界仍由本项目自有代码掌控。
+
+### T-300 `[ ]` 生产持久化与数据访问层
+
+**目标：** 用 PostgreSQL 替换运行期核心 in-memory repository，使文献、候选、审核、release、source run、Skill、chat、审计和观测记录在进程重启后完整保留。
+
+**确定技术路线：**
+
+- PostgreSQL 作为主业务库。
+- SQLAlchemy 2.x ORM/Core + `psycopg` 3 作为数据库访问层，使用 repository adapter 隔离数据库细节。
+- Alembic 作为唯一迁移入口；现有 `backend/migrations/*.sql` 迁入 Alembic revision，后续不再维护双迁移体系。
+- Pydantic/typed DTO 只用于 API 边界，不替代领域 dataclass 的业务校验。
+
+**实施内容：**
+
+- [ ] 为 `DocumentRepository`、`CandidateRepository`、`ReviewRepository`、`SourceRepository`、Skill/chat/audit/observability 相关 repository 实现 PostgreSQL adapter。
+- [ ] 明确事务边界：文档入库、候选抽取 run、review batch 创建、release snapshot 创建、release 激活/回滚必须具备一致性。
+- [ ] 将当前 `create_app()` 从默认 in-memory repository 切到可配置 repository factory，保留 in-memory 仅用于单元测试。
+- [ ] 将 release、review decision、source run、candidate run 的 JSON 字段落入 `JSONB` 或清晰的 normalized 表，禁止只用一大段不可检索文本糊住核心状态。
+- [ ] 为常用查询建立索引：`domain_id`、状态、document hash、release active、source idempotency key、review status、created_at。
+- [ ] 增加种子/重置脚本：可以创建本地 demo 域、管理员、fixture 文档和 active release，且不会污染生产数据。
+- [ ] 增加数据库连接池、超时、健康检查和迁移版本检查。
+
+**验收：**
+
+- 重启 API/worker 后，文档、review batch、release、source run、chat history 和 audit events 仍可查询。
+- 同一文档重复上传仍由数据库唯一约束和业务逻辑共同防重。
+- release 创建失败时不会留下半成品 active release 或半成品发布 artifact。
+- 迁移可在空库和已有 fixture 库上重复执行；CI 中包含 migration apply/drop 或 upgrade/downgrade 检查。
+
+**不得做：**
+
+- 不让 API 直接散落写 SQL，必须走 repository/transaction 边界。
+- 不把候选知识和已发布知识放进同一张无状态大表。
+
+### T-310 `[ ]` 生产任务队列与异步流水线
+
+**目标：** 把解析、抽取、source sync、release index、批量导入等长任务从同步 API 请求中移出，形成可重试、可观测、可恢复的后台流水线。
+
+**确定技术路线：**
+
+- Celery 5 + Redis 作为生产任务队列组合；Redis 同时作为 broker 和 result backend，业务最终状态仍写 PostgreSQL。
+- Flower 用于任务观察和本地/内网运维查看。
+- 不引入第二套工作流引擎；当前任务模型以 Celery 的 task、retry、chain/group 和数据库幂等状态实现。
+
+**实施内容：**
+
+- [ ] 建立 worker app 和任务模块：`parse_document`、`extract_candidates`、`create_review_batch`、`sync_source`、`sync_active_release_index`、`refresh_retrieval_index`。
+- [ ] API 对长任务返回 `202 Accepted + job_id`，管理台轮询或 SSE 展示进度，不阻塞请求线程。
+- [ ] 任务状态写入持久化 `job_runs/source_sync_runs`，包含输入引用、输出引用、attempt、耗时、错误、trace id。
+- [ ] 实现幂等键：同一 source artifact、同一 document hash、同一 extraction config 不重复创建候选批次。
+- [ ] 实现 retry/backoff、最大重试、人工重跑、取消和失败隔离。
+- [ ] 对 LLM 调用、PDF 解析、Graph sync 等任务设置独立超时与并发限制。
+
+**验收：**
+
+- 上传大文件或批量文件时 API 不超时，后台任务可继续执行。
+- worker 中断后重启，未完成任务不会重复发布正式知识。
+- 失败任务能在管理台看到完整原因并可重试；重试后保留原失败记录。
+- 同一批 source sync 并发触发不会产生重复 review batch。
+
+### T-320 `[ ]` 真实认证、授权与租户/角色治理
+
+**目标：** 用真实身份体系替代请求参数里的 `actor_id/actor_role`，使系统具备生产可追责能力。
+
+**确定技术路线：**
+
+- Keycloak 作为默认 OIDC/OAuth2 身份提供方，支持后续接企业微信/飞书作为上游身份源。
+- 前端使用 `oidc-client-ts` 完成 Authorization Code + PKCE。
+- 后端使用 PyJWT + JWKS cache 校验 access token；角色与领域权限在本项目 PostgreSQL 中做映射。
+
+**实施内容：**
+
+- [ ] 建立 `users`、`roles`、`domain_memberships`、`permissions` 表，支持同一用户在不同 `domain_id` 下不同角色。
+- [ ] 所有写接口从 token/session 获取 actor，不再信任请求体中的 actor 字段。
+- [ ] 保留 service 层 `ActorContext`，但由认证 middleware/dependency 注入。
+- [ ] 管理台增加登录、退出、当前用户、无权限状态页。
+- [ ] 高风险操作增加二次确认与可配置审批策略：release 激活/回滚、数据源配置、Skill 启停、未来设备相关动作。
+- [ ] 审计事件记录真实 user id、显示名、角色、来源 IP/request id、领域和目标对象。
+
+**验收：**
+
+- 未登录用户不能访问管理台和受保护 API。
+- 研究者不能发布 release，审核员不能配置系统数据源，管理员操作有审计。
+- 篡改请求体 `actor_role=admin` 不会提升权限。
+- 同一用户在两个 domain 的权限隔离可由测试验证。
+
+### T-330 `[ ]` 生产对象存储、文件安全与解析增强
+
+**目标：** 让原文资料、解析产物、候选产物和发布产物进入可备份、可审计、可校验的对象存储，并提升真实 PDF 解析能力。
+
+**确定技术路线：**
+
+- MinIO 作为默认 S3-compatible object storage，使用 `boto3` 实现 `S3ObjectStore`。
+- 文件类型识别使用 `python-magic`，不能只信任扩展名。
+- 病毒/恶意文件扫描接 ClamAV 服务。
+- PDF 解析主路线固定为 Docling；扫描件 OCR 固定接 PaddleOCR，并通过同一个 `DocumentParser` adapter 暴露结果。
+
+**实施内容：**
+
+- [ ] 实现 `S3ObjectStore`，支持 bucket、prefix、版本、content hash、metadata、服务端加密配置和只读签名 URL。
+- [ ] RAW/PARSED/CANDIDATE/PUBLISHED artifact 均保留不可变版本；禁止覆盖同一 object version。
+- [ ] 上传阶段加入 MIME sniffing、大小限制、页数限制、文件扫描和拒绝原因。
+- [ ] 为真实中文 PDF 建立 Docling + PaddleOCR parser benchmark，记录同一语料上的成功率、locator 质量、表格/标题处理和耗时。
+- [ ] 对解析结果增加质量标记：是否 OCR、是否低置信、是否缺页、是否抽取到表格。
+- [ ] 为文档详情页提供安全下载/预览入口，但不暴露对象存储内部密钥。
+
+**验收：**
+
+- 生产对象存储中的 artifact 可用 hash 校验，备份后可恢复。
+- 上传伪装扩展名、超大文件、空文本 PDF、扫描 PDF 均有明确状态。
+- 在 E-001 真实样本上记录解析成功率和失败分类，达到上线门槛后再标记完成。
+
+### T-340 `[ ]` Neo4j/向量/混合检索生产化
+
+**目标：** 将当前内存图谱和词法检索升级为持久化、可查询、可评测的生产检索层，同时保持 active release 和引用边界。
+
+**确定技术路线：**
+
+- Neo4j official Python driver 作为图数据库 adapter。
+- 向量检索使用 PostgreSQL `pgvector`，不另引入独立向量数据库。
+- Embedding provider 通过 adapter 接入，记录 embedding model/version。
+- 检索融合固定为 PostgreSQL full-text + `pgvector` + Neo4j graph neighborhood 的 hybrid ranker。
+
+**实施内容：**
+
+- [ ] 在 app 启动配置中接入 `Neo4jGraphRepository`，建立约束和索引：release、document、chunk、assertion、concept。
+- [ ] 将 release sync 设计为幂等任务：重复 sync 不重复节点/边，失败可重跑。
+- [ ] 建立 durable `retrieval_index_entries` 或等价索引表，保存 assertion、chunk、locator、index_text、embedding ref、release id。
+- [ ] 为 active release 查询增加全文检索、向量召回、图邻域扩展和 citation filter；所有结果必须可回溯到 `SourceChunk`。
+- [ ] 建立检索评测脚本，比较 lexical baseline 与本任务实现的 hybrid ranker 在同一问题集上的 recall、citation accuracy、latency、cost。
+- [ ] 实现 `RagEngine`/`GraphRagAdapter` 端口，T-345 固定接入 Microsoft GraphRAG；T-340 自身完成可控的 release-local hybrid baseline。
+
+**验收：**
+
+- Neo4j 重启后 active release 图谱仍可查询。
+- 切换 active release 后，用户检索立即只读新 active release。
+- 未审核 candidate assertion 无法通过任何检索路径返回。
+- 每个搜索结果都有 document/chunk locator citation；无引用的 assertion 不进入医学回答。
+
+### T-345 `[ ]` Microsoft GraphRAG 框架接入
+
+**目标：** 接入 Microsoft GraphRAG 作为正式 GraphRAG 框架，承担社区摘要、全局主题概览、多跳关系查询和研究空白分析；同时保证框架只能读取 active release 派生数据，不能绕过审核发布边界。
+
+**确定技术路线：**
+
+- Microsoft GraphRAG 作为唯一 GraphRAG 框架主线，用于 global/local/DRIFT 查询、社区摘要和跨文献主题概览。
+- 本项目自有 `RagEngine` adapter 负责 release export、索引触发、查询、引用映射和权限控制。
+- DeepEval 用于 answer relevance、faithfulness、context precision 和 citation recall 评测。
+- V1.5 只接入 Microsoft GraphRAG，不引入第二套 GraphRAG/RAG 编排框架。
+
+**实施内容：**
+
+- [ ] 定义统一 `RagEngine` 端口：`index_release()`、`query_release()`、`delete_release_index()`、`healthcheck()`、`explain()`。
+- [ ] 为 Microsoft GraphRAG 建立独立 adapter，输入只允许 `PublishedReleaseExport`，输出必须带 source chunk/citation mapping。
+- [ ] 建立 release export 格式：只导出 active/published assertion、source document、source chunk、concept 和 review metadata，不导出 candidate/raw LLM response。
+- [ ] 建立 Microsoft GraphRAG 上线评测：在同一问题集上记录召回、引用准确率、延迟、成本、索引耗时和运维复杂度，并与现有 baseline 指标并列展示。
+- [ ] 对框架生成的社区摘要或全局总结打上 `DERIVED` 层标记，不能反写为正式 `EvidenceAssertion`；若摘要发现新关系，只能创建候选任务等待审核。
+- [ ] 管理台增加“GraphRAG 索引”视图，展示 Microsoft GraphRAG 版本、索引状态、评测结果和发布状态。
+
+**验收：**
+
+- 完成 Microsoft GraphRAG adapter，并在 ADR 中记录索引格式、查询模式、权限边界和引用映射。
+- 同一 E-003 问题集上有可复现评测报告，不能只凭主观演示决定上线。
+- 框架输出不得出现 candidate 泄漏；所有回答引用必须落回本系统 `SourceChunk`。
+- Microsoft GraphRAG 默认作为科研主题概览、研究空白分析和复杂多跳问题引擎；直接事实查证和医学证据回答默认仍走 T-340 hybrid evidence retrieval。
+
+**不得做：**
+
+- 不让 Microsoft GraphRAG 自动抽出的图谱直接成为主知识库。
+- 不把框架内部索引当作唯一存储；主数据仍在 PostgreSQL/Neo4j release schema 与对象存储中。
+- 不在没有真实评测集时为了“看起来先进”接入多个框架到生产路径。
+
+### T-350 `[ ]` 模型调用网关、抽取质量与成本治理
+
+**目标：** 让 LLM 抽取和问答具备稳定配置、可追踪成本、失败治理和质量回归，而不是单次 live 调用。
+
+**确定技术路线：**
+
+- LiteLLM 作为统一模型调用网关，封装 MiMo、DeepSeek 和后续 OpenAI-compatible provider。
+- Langfuse 作为 prompt/version、LLM trace 和模型调用观测后端。
+- Pydantic v2 + JSON Schema 作为结构化输出校验层，业务对象仍落到 Evidence Schema。
+
+**实施内容：**
+
+- [ ] 建立 model invocation 表，记录 provider、model、prompt version、schema version、token、latency、cost、raw response hash、error。
+- [ ] 为抽取任务增加 chunk batching、长文窗口策略、重试策略、JSON repair 边界和严格 Schema validation。
+- [ ] 对 provider 响应做脱敏持久化，不存 API key，不把完整敏感 query 写入审计。
+- [ ] 建立 golden extraction regression：同一 fixture/真实样本在 prompt/model 更新前后比较 assertion 数量、source_chunk_ids、关键字段和错误率。
+- [ ] 管理台展示模型调用量、失败率、平均延迟和估算成本。
+- [ ] 明确模型降级策略：provider 不可用时任务失败并可重试，不伪造候选证据。
+
+**验收：**
+
+- live provider 配置可通过健康检查验证，但不回显密钥。
+- 每次候选抽取可从 assertion lineage 追溯到具体 provider/model/prompt/schema/parser。
+- prompt 或 model 变更必须跑 extraction regression，未通过不得默认切换。
+
+### T-355 `[ ]` 关系抽取成熟度专项优化
+
+**目标：** 把当前 fixture-level 关系抽取升级为可评测、可迭代、可审核的真实语料抽取能力，重点解决普通 `relations` 未进入主流程、跨 chunk 关系合并、复杂 PICO/参数/安全信息抽取和置信度不可校准的问题。
+
+**确定技术路线：**
+
+- Label Studio 作为人工标注/复核工具，用于构建金标准关系集。
+- Pydantic v2/JSON Schema 生成抽取输出 schema，用于严格 provider response validation。
+- 项目内 `evals` runner 记录 relation precision、recall、F1、citation accuracy、field completeness。
+- GLiNER 作为实体预标注辅助组件；发布仍以 Evidence Schema 和人工审核为准。
+
+**实施内容：**
+
+- [ ] 建立真实语料金标准：至少覆盖 tVNS/taVNS 的干预、刺激部位、参数、结局、安全事件、对照组、疾病/症状、人群和研究设计。
+- [ ] 明确 `relations` 与 `evidence_assertions` 的职责：普通关系可用于导航，但医学结论必须转成带来源的 `EvidenceAssertion` 才能发布。
+- [ ] 扩展 review workflow，使普通 `CandidateRelation` 可选择性进入审核台，支持批准为导航关系、转写为 EvidenceAssertion 或拒绝。
+- [ ] 增加跨 chunk 合并与去重策略：同一研究、同一干预、同一结局、多参数描述不能产生大量重复命题。
+- [ ] 优化抽取 prompt/schema，覆盖 PICO、阴性结果、无差异结果、冲突结论、表格参数、安全/禁忌和研究设计字段。
+- [ ] 建立错误分类：实体边界错误、predicate 错误、方向错误、参数遗漏、source chunk 错误、幻觉关系、重复关系、过度合并。
+- [ ] 校准或降级 `extraction_confidence`：在真实评测前只作为模型自报提示，不得当作统计概率；评测后记录按区间的实际准确率。
+- [ ] 建立 prompt/model/parser 联合回归：解析器或 prompt 更新后必须比较关系数量、字段完整性、source citation 准确率和错误类型变化。
+- [ ] 将关系抽取指标接入管理台和观测：按 domain、source、model、prompt、parser_version 展示抽取成功率与人工通过率。
+
+**验收：**
+
+- 至少一批真实 E-001 文献完成专家标注或双人复核，形成可复现 gold dataset。
+- live provider 在 gold dataset 上输出 precision、recall、F1、citation accuracy 和字段完整性报告。
+- 普通 `relations` 不再只是 artifact 中的旁路数据：要么进入审核台作为导航关系候选，要么明确不参与生产图谱。
+- 任一发布命题都能追溯到原文 chunk、抽取 run、prompt/schema/parser version 和 review decision。
+- 关系抽取错误类型有统计，后续 prompt/model/解析器优化能用同一指标比较。
+
+**不得做：**
+
+- 不把模型自报置信度当作真实准确率。
+- 不让普通关系绕过 `EvidenceAssertion` 和 review/release 直接支撑医学回答。
+- 不在没有真实标注集时声称关系抽取成熟或达到生产质量。
+
+### T-356 `[ ]` 多轮分级全文知识抽取流水线
+
+**目标：** 从当前“一次性候选命题抽取”升级为“全文、多轮、分级、可回溯”的知识抽取流水线，覆盖文档中细节关系、研究设计、证据命题和主题总结，贴近完整科研知识图谱建设目标。
+
+**确定技术路线：**
+
+- 使用 Celery workflow 编排多轮抽取任务，每一轮输出独立 artifact 和 run record。
+- 使用 LiteLLM 调用模型，所有轮次共享 T-350 的模型调用记录和成本治理。
+- 使用 Pydantic v2 schema 定义每一层输出结构，失败轮次可单独重跑。
+- 使用 PostgreSQL 保存抽取 run、候选对象和去重结果；使用 MinIO 保存每轮原始响应和派生 JSON。
+
+**实施内容：**
+
+- [ ] 定义五层抽取结构：
+  1. `EntityLayer`：疾病/症状、干预、穴位/刺激部位、参数、量表、结局、安全事件、研究设计术语。
+  2. `RelationLayer`：chunk 级细粒度实体关系和普通导航关系。
+  3. `StudyDesignLayer`：PICO、样本量、随机/盲法、对照、纳入/排除标准、随访、统计指标。
+  4. `EvidenceLayer`：可审核 `EvidenceAssertion`，包含方向、人群、参数、结局、source chunk。
+  5. `TopicLayer`：研究主题、趋势、冲突、证据空白和可复现实验线索，进入 `DERIVED` 层。
+- [ ] 每一层都必须记录输入 chunk ids、prompt version、model、schema version、parser version 和 output artifact。
+- [ ] 设计跨层合并规则：实体归一化后再合并关系，研究设计层约束证据层，主题层只能引用已抽取证据和原文。
+- [ ] 设计跨 chunk/cross-section 合并：同一论文的参数、结局和安全信息可合并到同一 study record，但必须保留每个字段来源。
+- [ ] 实现抽取差异比较：重新解析或重新抽取后展示新增、删除、修改和冲突候选。
+- [ ] 管理台增加“分级抽取 run”视图，按文档展示各层状态、错误、重跑和审核入口。
+
+**验收：**
+
+- 一篇真实论文能生成五层抽取 artifact，并可从主题层追溯到具体 `SourceChunk`。
+- 任一层失败不会污染已成功层，也不会自动发布知识。
+- 同一文档重抽后能展示层级 diff 和影响的候选 evidence assertions。
+- 主题层和 GraphRAG 摘要只能作为派生辅助，不直接成为正式医学结论。
+
+### T-357 `[ ]` 科研实验设计知识模型与 Skill
+
+**目标：** 支持研究者询问“应该如何设计某类实验”，系统基于已发布证据、GraphRAG 派生摘要和研究设计 Schema 生成可引用、可审查的实验设计建议草案。
+
+**确定技术路线：**
+
+- 新增 `ResearchDesign` 领域模型，结构化表达研究问题、PICO、样本、人群、干预参数、对照、结局、量表、安全监测、随访和证据依据。
+- 新增只读 `research-design` Agent Skill，只能读取 active release、Microsoft GraphRAG `DERIVED` 摘要和发布来源引用。
+- 使用 LiteLLM 生成实验设计草案，所有建议必须附 citation，不足之处必须明确标记为“证据不足/需专家确认”。
+
+**实施内容：**
+
+- [ ] 定义 `ResearchDesign` schema：`research_question`、`population`、`inclusion_criteria`、`exclusion_criteria`、`intervention`、`parameter_set`、`comparator`、`outcomes`、`measurement_tools`、`followup`、`safety_monitoring`、`feasibility_notes`、`evidence_gaps`、`citations`。
+- [ ] 将 T-356 的 `StudyDesignLayer` 映射到可检索的研究设计索引。
+- [ ] 实现 `research-design` Skill：输入研究方向和约束，输出实验设计草案、证据依据、冲突点、待专家确认项。
+- [ ] 检索策略固定为：active release evidence -> study design index -> Microsoft GraphRAG topic summary -> citation rerank。
+- [ ] 管理台增加实验设计草案预览和导出入口；导出内容标注“科研设计辅助，不作为临床治疗建议”。
+- [ ] 建立 eval seeds：失眠 tVNS、轻度认知障碍 tVNS、安全监测、不同刺激部位对照、参数优化和阴性结果复现实验。
+
+**验收：**
+
+- 对一个 E-003 研究设计问题，系统能生成结构化实验设计草案，并为每个关键建议给出已发布 citation。
+- 当缺少样本量、随访或安全依据时，答案明确标记证据不足，不编造数字。
+- 草案不调用 candidate 层数据，不输出设备可执行控制指令。
+- 专家可根据引用审查草案来源，反馈进入 eval/gold dataset。
+
+### T-360 `[ ]` 可观测、审计留存与运维监控
+
+**目标：** 用标准观测体系替代内存 recorder，使生产故障、性能、成本和安全事件可定位。
+
+**确定技术路线：**
+
+- OpenTelemetry instrumentation for FastAPI/httpx/Celery/SQLAlchemy。
+- Prometheus + Grafana 采集和展示指标。
+- Sentry 用于异常追踪。
+- structlog 输出结构化 JSON 日志。
+
+**实施内容：**
+
+- [ ] 统一 request id/trace id/job id，并贯穿 API、worker、LLM、DB、object store、Neo4j。
+- [ ] 将 observability events 和 audit events 持久化，设置留存策略和导出接口。
+- [ ] 增加关键指标：解析成功率、抽取成功率、candidate->release 转化、检索无结果率、citation 缺失率、LLM 成本、队列积压、任务耗时、错误率。
+- [ ] 建立告警规则：队列堆积、模型失败率升高、对象存储不可用、数据库连接耗尽、未授权访问异常、candidate 泄漏测试失败。
+- [ ] 管理台从真实指标仓库读取，不再返回 unavailable 占位。
+
+**验收：**
+
+- 本地 docker compose 或生产环境能打开 Grafana dashboard 查看 API/worker/DB/LLM 指标。
+- 任一 chat answer 可追踪到 request、Skill execution、retrieval、release、citation 和审计事件。
+- 故障样例能在日志/APM/任务记录中串起来定位。
+
+### T-370 `[ ]` 部署、配置、备份与灾备
+
+**目标：** 提供可重复部署、可回滚、可备份恢复的生产运行方案。
+
+**确定技术路线：**
+
+- Docker 多阶段构建；生产运行使用 gunicorn/uvicorn workers。
+- Docker Compose 作为 V1.5 生产部署基线。
+- Pydantic Settings v2 扩展为环境分层配置。
+- PostgreSQL、对象存储、Neo4j 使用各自成熟备份机制，不自行写备份格式。
+
+**实施内容：**
+
+- [ ] 编写 production Dockerfile、docker-compose.prod.yml 和环境变量说明。
+- [ ] 配置 API、worker、frontend、PostgreSQL、Redis、MinIO、Neo4j、Prometheus/Grafana 的部署拓扑。
+- [ ] 增加启动前检查：迁移版本、对象存储 bucket、Neo4j 连接、身份源配置、必要密钥存在。
+- [ ] 建立备份/恢复 runbook：PostgreSQL dump/PITR、对象存储 bucket versioning、Neo4j dump、配置和 Skill 包备份。
+- [ ] 建立环境分层：local、staging、production；生产禁用 debug docs 或加保护。
+- [ ] 建立蓝绿/滚动发布和回滚步骤，至少支持 staging 验收后升级 production。
+
+**验收：**
+
+- 新机器按 runbook 可从备份恢复到可查询 active release。
+- staging 与 production 配置隔离，生产密钥不进入仓库和前端 bundle。
+- 一次失败部署可按文档回滚到上一版本。
+
+### T-380 `[?]` 真实数据源 adapter 与数据合同
+
+**目标：** 在拿到真实外部接口契约后，实现可维护的数据源接入，而不是依赖 generic REST 处理未知结构。
+
+**确定技术路线：**
+
+- HTTP client 固定使用 `httpx`。
+- 数据合同使用 OpenAPI + Pydantic v2 models 固化。
+- 首个生产 adapter 固定对接 E-006 提供的真实外部资料接口；E-006 未提供前保持阻塞。
+
+**实施内容：**
+
+- [?] 获取 E-006：接口地址、认证方式、请求参数、分页/游标、速率限制、返回样例、全文获取权限。
+- [ ] 为 E-006 source 建立独立 adapter 和 contract tests。
+- [ ] 实现 cursor/checkpoint、增量时间窗、去重字段、失败重试和速率限制。
+- [ ] 明确 metadata 到 `SourceDocument`/`Study`/`SourceQualitySignals` 的映射，未知字段保留在 metadata，不随意猜测医学含义。
+- [ ] 管理台支持 E-006 source 的配置表单、测试连接和 dry-run 预览。
+
+**验收：**
+
+- 真实 source 的 contract test 可离线使用录制 fixture 重放。
+- 一次 sync 可拉取真实 metadata/文件进入统一 document pipeline。
+- 权限或全文不可用时清楚标记，不伪造文档内容。
+
+### T-390 `[ ]` 生产验收、压测与安全测试
+
+**目标：** 在上线前用可重复脚本证明系统能承受真实使用，并符合内部科研产品的安全和质量底线。
+
+**确定技术路线：**
+
+- pytest + Playwright 做端到端回归。
+- k6 做负载测试。
+- OWASP ZAP 做 Web/API 基础安全扫描。
+- pip-audit/npm audit/Trivy 做依赖和镜像漏洞扫描。
+
+**实施内容：**
+
+- [ ] 建立 staging 端到端验收脚本：真实登录、上传、异步解析、抽取、审核、发布、检索、聊天、回滚。
+- [ ] 建立负载模型：并发上传、批量 source sync、并发聊天、后台抽取并发、管理台查询。
+- [ ] 建立安全测试：认证绕过、越权、文件上传、prompt injection、candidate 泄漏、敏感配置泄漏、CORS/CSRF/速率限制。
+- [ ] 建立数据恢复演练：从备份恢复后 active release 和引用可用。
+- [ ] 输出生产发布清单，逐项记录版本、配置、迁移、备份、回滚、已知风险和负责人签收。
+
+**验收：**
+
+- staging 全链路自动验收通过。
+- 压测达到内部目标并记录瓶颈；未达标项进入阻塞清单。
+- 高危安全问题为 0；中危问题有明确修复或缓解方案。
+- 发布清单完成后才允许标记 production-ready。
+
+---
+
+## 8. P1/P2 远期任务
 
 以下任务不阻塞 V1，不得在 P0 主链路未验收前扩张实现范围。
-
-### T-200 `[ ]` 检索与 GraphRAG 引擎扩展评测
-
-- [ ] 若检索 baseline 在全局总结或复杂关系查询上存在量化缺口，再评测 Microsoft GraphRAG、LightRAG 或 KAG。
-- [ ] 使用相同评测集比较引用质量、召回、成本、延迟和运维复杂度。
-- [ ] 只在收益明确且不破坏发布/引用边界时接入生产路径。
 
 ### T-210 `[ ]` 新领域接入
 
@@ -881,7 +1286,7 @@ PDF/Markdown 资料导入
 
 ---
 
-## 8. Codex 每次实现的交付模板
+## 9. Codex 每次实现的交付模板
 
 后续让 Codex 执行某项 TODO 时，建议使用如下要求：
 
@@ -898,14 +1303,15 @@ PDF/Markdown 资料导入
 
 ---
 
-## 9. 当前下一步
+## 10. 当前下一步
 
-当前 P0 代码链路和 fixture 自动回归已经完成，下一步按以下外部门禁推进：
+当前 P0 代码链路和 fixture 自动回归已经完成；若目标是生产环境可用，下一步按以下顺序推进，避免继续扩大 demo 功能：
 
-1. 提供 E-001 授权的真实针灸/tVNS PDF/Markdown，记录解析成功率与失败样例。
-2. 提供 E-005 可用 MiMo 配置，在不提交密钥的前提下完成一次 live 抽取并记录质量、延迟和成本。
-3. 由专家为 E-003 问题种子补充期望引用或证据不足判断，形成真实问答验收集。
-4. 使用相同评测集决定 lexical baseline 是否存在可量化缺口；没有收益证据前不引入额外 GraphRAG 引擎。
-5. 若需要重启可恢复的现场演示，先补 durable repository adapter 和可重置 demo 数据方案。
+1. 先实现 T-300 durable PostgreSQL repository adapter，把 in-memory 运行期状态迁出。
+2. 接着实现 T-310 Celery/Redis 后台任务，把解析、抽取、索引和 source sync 从同步请求中移出。
+3. 并行准备 T-320 真实认证方案，生产环境不再接受请求体伪造 actor。
+4. 补 T-330/T-340，使对象存储、PDF 解析、Neo4j 和检索索引具备重启恢复能力。
+5. 在 E-001/E-005/E-003 到位后，执行 live 抽取、真实 citation 评测和 T-390 staging 验收。
+6. 执行 T-345 Microsoft GraphRAG 接入，使科研主题概览、研究空白分析和多跳问题不再依赖手写检索逻辑。
 
-在真实验收门禁完成前，T-120 保持 `[?]`，不得把 fixture 结果描述为正式针灸证据成果。
+在 T-300 至 T-390 完成前，本系统应描述为“可执行 V1 基线/fixture demo”，不得描述为 production-ready。真实验收门禁完成前，T-120 保持 `[?]`，不得把 fixture 结果描述为正式针灸证据成果。

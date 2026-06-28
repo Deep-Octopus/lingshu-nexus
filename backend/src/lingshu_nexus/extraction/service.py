@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from hashlib import sha256
 from typing import Any
@@ -30,6 +31,7 @@ from lingshu_nexus.extraction.models import (
     ProviderUsage,
 )
 from lingshu_nexus.extraction.providers import LlmCompletionRequest, LlmProvider, ProviderError
+from lingshu_nexus.extraction.prompts import load_literature_extraction_prompt
 from lingshu_nexus.extraction.repository import CandidateRepository
 from lingshu_nexus.observability import ObservabilityRecorder, ObservationStatus
 from lingshu_nexus.persistence.models import DataLayer, JobStatus
@@ -39,6 +41,8 @@ from lingshu_nexus.persistence.object_store import ObjectRef, ObjectStore
 class CandidateExtractionError(ValueError):
     """Raised when structured candidate extraction fails validation."""
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class CandidateExtractionService:
     def __init__(
@@ -47,16 +51,50 @@ class CandidateExtractionService:
         repository: CandidateRepository,
         object_store: ObjectStore,
         provider: LlmProvider,
-        prompt: ExtractionPrompt,
+        prompt: ExtractionPrompt | None = None,
         schema_version: str = ExtractionSchemaVersion.CANDIDATE_V0_1.value,
         observability: ObservabilityRecorder | None = None,
     ) -> None:
         self._repository = repository
         self._object_store = object_store
         self._provider = provider
-        self._prompt = prompt
+        self._default_prompt = prompt
+        self._prompt_cache: dict[str, ExtractionPrompt] = {}
         self._schema_version = schema_version
         self._observability = observability
+
+    def _get_prompt_for_domain(self, domain_id: str) -> ExtractionPrompt:
+        """Get or load the appropriate extraction prompt for the given domain."""
+        if domain_id in self._prompt_cache:
+            cached = self._prompt_cache[domain_id]
+            _LOGGER.info(
+                "Using cached extraction prompt for domain %s: %s (checksum=%s)",
+                domain_id,
+                cached.id,
+                cached.checksum,
+            )
+            return cached
+
+        # Try to load domain-specific prompt, fall back to default if not found
+        try:
+            prompt = load_literature_extraction_prompt(domain_id)
+            _LOGGER.info(
+                "Loaded extraction prompt for domain %s: %s (checksum=%s)",
+                domain_id,
+                prompt.id,
+                prompt.checksum,
+            )
+        except FileNotFoundError:
+            # Fall back to default prompt (acupuncture) if domain-specific prompt not found
+            prompt = self._default_prompt or load_literature_extraction_prompt("acupuncture")
+            _LOGGER.warning(
+                "Extraction prompt not found for domain %s, falling back to default (%s)",
+                domain_id,
+                prompt.id,
+            )
+
+        self._prompt_cache[domain_id] = prompt
+        return prompt
 
     def extract_document(self, document: DocumentRecord) -> CandidateExtractionRun:
         require_domain_id(document.domain_id)
@@ -81,12 +119,13 @@ class CandidateExtractionService:
 
         source_chunk_ids = tuple(chunk.id for chunk in document.chunks)
         started = time.perf_counter()
+        prompt = self._get_prompt_for_domain(document.domain_id)
         try:
             provider_response = self._provider.complete(
                 LlmCompletionRequest(
-                    system_prompt=self._prompt.text,
+                    system_prompt=prompt.text,
                     user_prompt=_build_user_prompt(document),
-                    prompt_version=self._prompt.version,
+                    prompt_version=prompt.version,
                     schema_version=self._schema_version,
                     metadata={
                         "domain_id": document.domain_id,
@@ -113,7 +152,7 @@ class CandidateExtractionService:
                 status=JobStatus.SUCCEEDED,
                 provider=provider_response.provider,
                 model=provider_response.model,
-                prompt_version=self._prompt.version,
+                prompt_version=prompt.version,
                 schema_version=self._schema_version,
                 source_chunk_ids=source_chunk_ids,
                 evidence_assertions=parsed.evidence_assertions,
@@ -151,6 +190,7 @@ class CandidateExtractionService:
         source_chunk_ids: tuple[str, ...],
         failure_reason: str,
     ) -> CandidateExtractionRun:
+        prompt = self._get_prompt_for_domain(document.domain_id)
         run = CandidateExtractionRun(
             id=f"extract_{uuid4().hex}",
             domain_id=document.domain_id,
@@ -158,7 +198,7 @@ class CandidateExtractionService:
             status=JobStatus.FAILED,
             provider=provider,
             model=model,
-            prompt_version=self._prompt.version,
+            prompt_version=prompt.version,
             schema_version=self._schema_version,
             source_chunk_ids=source_chunk_ids,
             failure_reason=failure_reason,
@@ -292,38 +332,68 @@ def _parse_candidate_payload(
 ) -> _ParsedCandidatePayload:
     allowed_chunk_ids = {chunk.id for chunk in source_chunks}
     chunk_parser_versions = {chunk.id: chunk.parser_version for chunk in source_chunks}
-    entities = tuple(_parse_term(item, "entities[]") for item in _list(payload.get("entities")))
-    relations = tuple(
-        _parse_relation(
-            item,
-            index=index,
-            domain_id=domain_id,
-            allowed_chunk_ids=allowed_chunk_ids,
+    entities: list[EvidenceTerm] = []
+    for item in _list(payload.get("entities")):
+        try:
+            entities.append(_parse_term(item, "entities[]"))
+        except CandidateExtractionError as exc:
+            _LOGGER.warning("Skipping unparseable entity in extraction result: %s", exc)
+    relations: list[CandidateRelation] = []
+    relation_errors: list[str] = []
+    for index, item in enumerate(_list(payload.get("relations"))):
+        try:
+            relations.append(
+                _parse_relation(
+                    item,
+                    index=index,
+                    domain_id=domain_id,
+                    allowed_chunk_ids=allowed_chunk_ids,
+                )
+            )
+        except CandidateExtractionError as exc:
+            _LOGGER.warning("Skipping unparseable relation[%d] in extraction result: %s", index, exc)
+            relation_errors.append(str(exc))
+    assertions: list[EvidenceAssertion] = []
+    assertion_errors: list[str] = []
+    for index, item in enumerate(_list(payload.get("evidence_assertions"))):
+        try:
+            assertions.append(
+                _parse_assertion(
+                    item,
+                    index=index,
+                    domain_id=domain_id,
+                    document_id=document_id,
+                    allowed_chunk_ids=allowed_chunk_ids,
+                    chunk_parser_versions=chunk_parser_versions,
+                )
+            )
+        except CandidateExtractionError as exc:
+            _LOGGER.warning(
+                "Skipping unparseable evidence_assertion[%d] in extraction result: %s", index, exc
+            )
+            assertion_errors.append(str(exc))
+    raw_assertions = _list(payload.get("evidence_assertions"))
+    raw_relations = _list(payload.get("relations"))
+    if raw_assertions and not assertions:
+        raise CandidateExtractionError(
+            f"All {len(raw_assertions)} evidence_assertion(s) failed validation: "
+            + "; ".join(assertion_errors)
         )
-        for index, item in enumerate(_list(payload.get("relations")))
-    )
-    assertions = tuple(
-        _parse_assertion(
-            item,
-            index=index,
-            domain_id=domain_id,
-            document_id=document_id,
-            allowed_chunk_ids=allowed_chunk_ids,
-            chunk_parser_versions=chunk_parser_versions,
+    if raw_relations and not relations:
+        _LOGGER.warning(
+            "All %d relation(s) failed validation (non-fatal): %s",
+            len(raw_relations),
+            "; ".join(relation_errors),
         )
-        for index, item in enumerate(_list(payload.get("evidence_assertions")))
-    )
-    if not assertions:
-        raise CandidateExtractionError("Provider output contained no evidence_assertions")
     study = payload.get("study", {})
     if study is None:
         study = {}
     if not isinstance(study, dict):
         raise CandidateExtractionError("study must be an object when present")
     return _ParsedCandidatePayload(
-        entities=entities,
-        relations=relations,
-        evidence_assertions=assertions,
+        entities=tuple(entities),
+        relations=tuple(relations),
+        evidence_assertions=tuple(assertions),
         study_metadata=study,
     )
 
@@ -337,11 +407,18 @@ def _parse_relation(
 ) -> CandidateRelation:
     value = _object(item, "relations[]")
     source_chunk_ids = _source_chunk_ids(value, allowed_chunk_ids)
+    predicate_raw = str(value.get("predicate"))
+    try:
+        predicate = PredicateType(predicate_raw)
+    except ValueError as exc:
+        raise CandidateExtractionError(
+            f"Unknown predicate type: {predicate_raw!r}"
+        ) from exc
     return CandidateRelation(
         id=str(value.get("id") or f"relation_{index:04d}"),
         domain_id=domain_id,
         subject=_parse_term(value.get("subject"), "relation.subject"),
-        predicate=PredicateType(str(value.get("predicate"))),
+        predicate=predicate,
         object=_parse_term(value.get("object"), "relation.object"),
         source_chunk_ids=source_chunk_ids,
         confidence=float(value.get("confidence", 0)),
@@ -359,6 +436,13 @@ def _parse_assertion(
 ) -> EvidenceAssertion:
     value = _object(item, "evidence_assertions[]")
     source_chunk_ids = _source_chunk_ids(value, allowed_chunk_ids)
+    predicate_raw = str(value.get("predicate"))
+    try:
+        predicate = PredicateType(predicate_raw)
+    except ValueError as exc:
+        raise CandidateExtractionError(
+            f"Unknown predicate type: {predicate_raw!r}"
+        ) from exc
     metadata = _object_or_empty(value.get("metadata"))
     metadata["source_parser_versions"] = sorted(
         {
@@ -371,7 +455,7 @@ def _parse_assertion(
         id=str(value.get("id") or f"candidate_{document_id}_{index:04d}"),
         domain_id=domain_id,
         subject=_parse_term(value.get("subject"), "assertion.subject"),
-        predicate=PredicateType(str(value.get("predicate"))),
+        predicate=predicate,
         object=_parse_term(value.get("object"), "assertion.object"),
         source_chunk_ids=source_chunk_ids,
         review_status=ReviewStatus.PENDING,
@@ -388,10 +472,107 @@ def _parse_assertion(
     return assertion
 
 
+# Mapping of common LLM-generated concept type strings to valid ConceptType values.
+# DeepSeek and other models sometimes produce types (e.g. "condition") that are not
+# in the official enum. This mapping prevents ValueErrors at parse time.
+_CONCEPT_TYPE_FALLBACK: dict[str, str] = {
+    # Common fallbacks
+    "condition": "disease_or_symptom",
+    "disease": "disease_or_symptom",
+    "symptom": "disease_or_symptom",
+    "disorder": "addictive_disorder",
+    "syndrome": "disease_or_symptom",
+    "treatment": "intervention",
+    "therapy": "psychological_intervention",
+    "drug": "intervention",
+    "procedure": "physical_intervention",
+    "device": "physical_intervention",
+    "point": "acupoint",
+    "site": "stimulation_site",
+    "side_effect": "adverse_event",
+    "adverse_event": "adverse_event",
+    "adverse_effect": "adverse_event",
+    "safety": "adverse_event",
+    "study_design": "study_design",
+    "article": "literature",
+    "paper": "literature",
+    "publication": "literature",
+
+    # Addiction specific fallbacks
+    "addiction": "addictive_disorder",
+    "dependence": "addictive_disorder",
+    "substance_use": "addictive_disorder",
+    "substance_abuse": "addictive_disorder",
+    "alcohol_addiction": "addictive_disorder",
+    "opioid_addiction": "addictive_disorder",
+    "nicotine_addiction": "addictive_disorder",
+    "smoking": "addictive_disorder",
+    "tobacco": "substance",
+    "alcohol": "substance",
+    "opioid": "substance",
+    "cocaine": "substance",
+    "methamphetamine": "substance",
+    "cannabis": "substance",
+    "marijuana": "substance",
+    "behavioral_addiction": "behavioral_addiction",
+    "gambling": "behavioral_addiction",
+    "internet_addiction": "behavioral_addiction",
+    "gaming_disorder": "behavioral_addiction",
+    "psychotherapy": "psychological_intervention",
+    "cbt": "psychological_intervention",
+    "cognitive_behavioral": "psychological_intervention",
+    "motivational_interviewing": "psychological_intervention",
+    "mi": "psychological_intervention",
+    "mindfulness": "psychological_intervention",
+    "contingency_management": "psychological_intervention",
+    "cm": "psychological_intervention",
+    "family_therapy": "psychological_intervention",
+    "acupuncture": "physical_intervention",
+    "electroacupuncture": "physical_intervention",
+    "rtms": "physical_intervention",
+    "tdcs": "physical_intervention",
+    "vagus_nerve_stimulation": "physical_intervention",
+    "tvns": "physical_intervention",
+    "exercise": "physical_intervention",
+    "digital_intervention": "digital_intervention",
+    "internet_intervention": "digital_intervention",
+    "app_intervention": "digital_intervention",
+    "mobile_intervention": "digital_intervention",
+    "icbt": "digital_intervention",
+    "online_therapy": "digital_intervention",
+    "parameter": "intervention_parameter",
+    "outcome": "outcome_measure",
+    "abstinence": "outcome_measure",
+    "retention": "outcome_measure",
+    "craving": "craving_measure",
+    "withdrawal": "withdrawal_symptom",
+    "relapse": "relapse_measure",
+    "control": "control_condition",
+    "followup": "followup_period",
+    "follow_up": "followup_period",
+    "population": "population",
+    "mechanism": "mechanism",
+}
+
+
+def _resolve_concept_type(raw: str) -> ConceptType:
+    """Convert a raw type string to a ConceptType, with fallback for LLM variants."""
+    try:
+        return ConceptType(raw)
+    except ValueError:
+        mapped = _CONCEPT_TYPE_FALLBACK.get(raw.lower().strip())
+        if mapped is not None:
+            return ConceptType(mapped)
+        raise CandidateExtractionError(
+            f"Unknown concept type {raw!r} is not a valid ConceptType; "
+            "add a fallback mapping in _CONCEPT_TYPE_FALLBACK if this is a legitimate variant"
+        ) from None
+
+
 def _parse_term(item: object, field_name: str) -> EvidenceTerm:
     value = _object(item, field_name)
     return EvidenceTerm(
-        type=ConceptType(str(value.get("type"))),
+        type=_resolve_concept_type(str(value.get("type"))),
         text=str(value.get("text") or ""),
         concept_id=_optional_str(value.get("concept_id")),
         original_text=_optional_str(value.get("original_text")),
@@ -413,6 +594,7 @@ def _parse_parameter_set(item: object) -> ParameterSet | None:
         return None
     value = _object(item, "parameter_set")
     return ParameterSet(
+        # Acupuncture/tVNS parameters
         stimulation_site=_optional_str(value.get("stimulation_site")),
         frequency_hz=_optional_float(value.get("frequency_hz")),
         pulse_width_us=_optional_float(value.get("pulse_width_us")),
@@ -422,6 +604,21 @@ def _parse_parameter_set(item: object) -> ParameterSet | None:
         waveform=_optional_str(value.get("waveform")),
         dose=_optional_str(value.get("dose")),
         sham_control=_optional_str(value.get("sham_control")),
+
+        # Addiction intervention parameters
+        intervention_type=_optional_str(value.get("intervention_type")),
+        delivery_format=_optional_str(value.get("delivery_format")),
+        session_frequency=_optional_str(value.get("session_frequency")),
+        total_duration_weeks=_optional_float(value.get("total_duration_weeks")),
+        total_sessions=_optional_int(value.get("total_sessions")),
+        therapist_qualification=_optional_str(value.get("therapist_qualification")),
+        delivery_setting=_optional_str(value.get("delivery_setting")),
+        dose_response=_optional_str(value.get("dose_response")),
+        adherence_rate=_optional_float(value.get("adherence_rate")),
+        control_condition=_optional_str(value.get("control_condition")),
+        followup_period_months=_optional_float(value.get("followup_period_months")),
+        abstinence_definition=_optional_str(value.get("abstinence_definition")),
+
         raw_text=_optional_str(value.get("raw_text")),
     )
 

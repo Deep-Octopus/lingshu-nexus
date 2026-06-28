@@ -19,11 +19,19 @@ class Settings:
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     default_domain_id: str = "acupuncture"
+    llm_provider: str = "mimo"
     mimo_api_key: str = ""
     mimo_base_url: str = "https://mimo.example.invalid/v1"
     mimo_model_id: str = "replace-with-mimo-model-id"
     mimo_extraction_model_id: str = ""
     mimo_chat_model_id: str = ""
+    mimo_timeout_seconds: float = 45.0
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model_id: str = "deepseek-v4-flash"
+    deepseek_extraction_model_id: str = ""
+    deepseek_chat_model_id: str = ""
+    deepseek_timeout_seconds: float = 45.0
     database_url: str = (
         "postgresql://lingshu:change-me-postgres-password@localhost:5432/lingshu_nexus"
     )
@@ -44,6 +52,7 @@ class Settings:
             app_host=_env("APP_HOST", cls.app_host),
             app_port=int(_env("APP_PORT", str(cls.app_port))),
             default_domain_id=_env("DEFAULT_DOMAIN_ID", cls.default_domain_id),
+            llm_provider=_env("LLM_PROVIDER", cls.llm_provider).lower(),
             mimo_api_key=_env("MIMO_API_KEY", cls.mimo_api_key),
             mimo_base_url=_env("MIMO_BASE_URL", cls.mimo_base_url),
             mimo_model_id=_env("MIMO_MODEL_ID", cls.mimo_model_id),
@@ -52,6 +61,23 @@ class Settings:
                 cls.mimo_extraction_model_id,
             ),
             mimo_chat_model_id=_env("MIMO_CHAT_MODEL_ID", cls.mimo_chat_model_id),
+            mimo_timeout_seconds=float(
+                _env("MIMO_TIMEOUT_SECONDS", str(cls.mimo_timeout_seconds))
+            ),
+            deepseek_api_key=_env("DEEPSEEK_API_KEY", cls.deepseek_api_key),
+            deepseek_base_url=_env("DEEPSEEK_BASE_URL", cls.deepseek_base_url),
+            deepseek_model_id=_env("DEEPSEEK_MODEL_ID", cls.deepseek_model_id),
+            deepseek_extraction_model_id=_env(
+                "DEEPSEEK_EXTRACTION_MODEL_ID",
+                cls.deepseek_extraction_model_id,
+            ),
+            deepseek_chat_model_id=_env(
+                "DEEPSEEK_CHAT_MODEL_ID",
+                cls.deepseek_chat_model_id,
+            ),
+            deepseek_timeout_seconds=float(
+                _env("DEEPSEEK_TIMEOUT_SECONDS", str(cls.deepseek_timeout_seconds))
+            ),
             database_url=_env("DATABASE_URL", cls.database_url),
             redis_url=_env("REDIS_URL", cls.redis_url),
             object_storage_endpoint=_env("OBJECT_STORAGE_ENDPOINT", cls.object_storage_endpoint),

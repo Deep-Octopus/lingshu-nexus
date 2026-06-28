@@ -52,7 +52,7 @@
 
     （2）抑郁症
 
-    - 抑郁：depression 
+    - 抑郁：depression
 
     - 轻微抑郁/情绪低落：blues，例如产后抑郁 Postpartum blues（未达到抑郁水平，但持续发展可能会确诊抑郁症）
 

@@ -4,8 +4,11 @@ from dataclasses import dataclass
 
 from lingshu_domain.config import (
     ACUPUNCTURE_DOMAIN,
+    ADDICTION_DOMAIN,
+    DOMAIN_REGISTRY,
     DomainConfig,
     build_domain_config,
+    get_domain_config,
 )
 from lingshu_domain.evidence import (
     CanonicalConcept,
@@ -46,7 +49,9 @@ class DomainContext:
 
 __all__ = [
     "ACUPUNCTURE_DOMAIN",
+    "ADDICTION_DOMAIN",
     "DEFAULT_DOMAIN_ID",
+    "DOMAIN_REGISTRY",
     "CanonicalConcept",
     "ChunkLocator",
     "ConceptStatus",
@@ -70,4 +75,5 @@ __all__ = [
     "Study",
     "StudyType",
     "build_domain_config",
+    "get_domain_config",
 ]

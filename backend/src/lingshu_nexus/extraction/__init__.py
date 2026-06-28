@@ -7,6 +7,7 @@ from lingshu_nexus.extraction.models import (
     ProviderUsage,
 )
 from lingshu_nexus.extraction.providers import (
+    DeepSeekProvider,
     FakeLlmProvider,
     LlmCompletionRequest,
     LlmCompletionResponse,
@@ -14,6 +15,7 @@ from lingshu_nexus.extraction.providers import (
     MiMoProvider,
     ProviderConfigurationError,
     ProviderError,
+    create_llm_provider,
 )
 from lingshu_nexus.extraction.repository import InMemoryCandidateRepository
 from lingshu_nexus.extraction.service import CandidateExtractionService
@@ -22,6 +24,7 @@ __all__ = [
     "CandidateExtractionRun",
     "CandidateExtractionService",
     "CandidateRelation",
+    "DeepSeekProvider",
     "ExtractionPrompt",
     "FakeLlmProvider",
     "InMemoryCandidateRepository",
@@ -32,4 +35,5 @@ __all__ = [
     "ProviderConfigurationError",
     "ProviderError",
     "ProviderUsage",
+    "create_llm_provider",
 ]

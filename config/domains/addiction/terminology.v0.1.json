@@ -1,0 +1,305 @@
+{
+  "domain_id": "addiction",
+  "terminology_version": "v0.1",
+  "status": "seed",
+  "terms": [
+    {
+      "canonical_id": "disorder:nicotine_dependence",
+      "type": "addictive_disorder",
+      "preferred_name": "尼古丁依赖",
+      "aliases": [
+        "nicotine dependence",
+        "tobacco use disorder",
+        "smoking addiction",
+        "烟草依赖",
+        "吸烟成瘾"
+      ],
+      "review_note": "包括烟草使用障碍和尼古丁成瘾，注意区分偶尔吸烟和依赖诊断。"
+    },
+    {
+      "canonical_id": "disorder:alcohol_use_disorder",
+      "type": "addictive_disorder",
+      "preferred_name": "酒精使用障碍",
+      "aliases": [
+        "alcohol use disorder",
+        "AUD",
+        "alcoholism",
+        "alcohol addiction",
+        "酒精依赖",
+        "酒精成瘾",
+        "酒依赖"
+      ],
+      "review_note": "按DSM-5诊断标准定义，包括轻度、中度、重度。"
+    },
+    {
+      "canonical_id": "disorder:opioid_use_disorder",
+      "type": "addictive_disorder",
+      "preferred_name": "阿片类物质使用障碍",
+      "aliases": [
+        "opioid use disorder",
+        "OUD",
+        "opioid addiction",
+        "opiate dependence",
+        "阿片类物质依赖",
+        "阿片成瘾",
+        "海洛因成瘾"
+      ],
+      "review_note": "包括处方阿片类和非法阿片类物质（海洛因等）成瘾。"
+    },
+    {
+      "canonical_id": "disorder:methamphetamine_addiction",
+      "type": "addictive_disorder",
+      "preferred_name": "甲基苯丙胺成瘾",
+      "aliases": [
+        "methamphetamine addiction",
+        "MA addiction",
+        "meth addiction",
+        "ice addiction",
+        "amphetamine use disorder",
+        "冰毒成瘾",
+        "甲基安非他明成瘾"
+      ],
+      "review_note": "包括冰毒、麻古等苯丙胺类兴奋剂成瘾。"
+    },
+    {
+      "canonical_id": "disorder:cocaine_addiction",
+      "type": "addictive_disorder",
+      "preferred_name": "可卡因成瘾",
+      "aliases": [
+        "cocaine addiction",
+        "cocaine use disorder",
+        "crack cocaine addiction",
+        "可卡因依赖"
+      ],
+      "review_note": "包括快克可卡因成瘾。"
+    },
+    {
+      "canonical_id": "disorder:cannabis_use_disorder",
+      "type": "addictive_disorder",
+      "preferred_name": "大麻使用障碍",
+      "aliases": [
+        "cannabis use disorder",
+        "CUD",
+        "marijuana addiction",
+        "大麻成瘾",
+        "大麻依赖"
+      ],
+      "review_note": "注意区分医疗用大麻和 recreational use。"
+    },
+    {
+      "canonical_id": "disorder:gambling_disorder",
+      "type": "behavioral_addiction",
+      "preferred_name": "赌博障碍",
+      "aliases": [
+        "gambling disorder",
+        "pathological gambling",
+        "compulsive gambling",
+        "赌博成瘾",
+        "病理性赌博"
+      ],
+      "review_note": "按DSM-5分类为非物质相关成瘾。"
+    },
+    {
+      "canonical_id": "disorder:internet_addiction",
+      "type": "behavioral_addiction",
+      "preferred_name": "网络成瘾",
+      "aliases": [
+        "internet addiction",
+        "internet gaming disorder",
+        "IGD",
+        "problematic internet use",
+        "网络游戏成瘾",
+        "网络成瘾障碍"
+      ],
+      "review_note": "包括网络游戏成瘾、社交媒体成瘾等问题性网络使用。"
+    },
+    {
+      "canonical_id": "intervention:CBT",
+      "type": "psychological_intervention",
+      "preferred_name": "认知行为疗法",
+      "aliases": [
+        "Cognitive Behavioral Therapy",
+        "CBT",
+        "cognitive behaviour therapy",
+        "认知行为治疗"
+      ],
+      "review_note": "包括各种CBT变体如CRA、Community Reinforcement Approach等，提取时保留原始名称。"
+    },
+    {
+      "canonical_id": "intervention:MI",
+      "type": "psychological_intervention",
+      "preferred_name": "动机访谈",
+      "aliases": [
+        "Motivational Interviewing",
+        "MI",
+        "motivational enhancement therapy",
+        "MET",
+        "动机强化治疗"
+      ],
+      "review_note": "包括动机强化治疗（MET）。"
+    },
+    {
+      "canonical_id": "intervention:mindfulness",
+      "type": "psychological_intervention",
+      "preferred_name": "正念干预",
+      "aliases": [
+        "mindfulness-based intervention",
+        "MBRP",
+        "mindfulness-based relapse prevention",
+        "MBSR",
+        "mindfulness-based stress reduction",
+        "正念防复发",
+        "正念减压"
+      ],
+      "review_note": "包括正念防复发（MBRP）、正念减压（MBSR）等基于正念的干预方法。"
+    },
+    {
+      "canonical_id": "intervention:acupuncture",
+      "type": "physical_intervention",
+      "preferred_name": "针灸治疗",
+      "aliases": [
+        "acupuncture",
+        "auricular acupuncture",
+        "electroacupuncture",
+        "耳针",
+        "电针",
+        "针刺治疗"
+      ],
+      "review_note": "包括体针、耳针、电针等针灸相关干预。"
+    },
+    {
+      "canonical_id": "intervention:tVNS",
+      "type": "physical_intervention",
+      "preferred_name": "经皮耳迷走神经刺激",
+      "aliases": [
+        "taVNS",
+        "tVNS",
+        "transcutaneous auricular vagus nerve stimulation",
+        "经皮迷走神经刺激"
+      ],
+      "review_note": "非药物神经调控干预。"
+    },
+    {
+      "canonical_id": "intervention:rTMS",
+      "type": "physical_intervention",
+      "preferred_name": "重复经颅磁刺激",
+      "aliases": [
+        "rTMS",
+        "repetitive transcranial magnetic stimulation",
+        "经颅磁刺激"
+      ],
+      "review_note": "神经调控干预，注意刺激部位、频率等参数。"
+    },
+    {
+      "canonical_id": "intervention:tDCS",
+      "type": "physical_intervention",
+      "preferred_name": "经颅直流电刺激",
+      "aliases": [
+        "tDCS",
+        "transcranial direct current stimulation",
+        "经颅电刺激"
+      ],
+      "review_note": "神经调控干预，记录电流强度、刺激部位等参数。"
+    },
+    {
+      "canonical_id": "intervention:digital_CBT",
+      "type": "digital_intervention",
+      "preferred_name": "数字化认知行为疗法",
+      "aliases": [
+        "digital CBT",
+        "internet-based CBT",
+        "iCBT",
+        "app-based intervention",
+        "mobile intervention",
+        "在线CBT",
+        "APP干预",
+        "移动医疗干预"
+      ],
+      "review_note": "包括基于互联网、手机APP、短信等数字化平台的干预。"
+    },
+    {
+      "canonical_id": "intervention:contingency_management",
+      "type": "psychological_intervention",
+      "preferred_name": "列联管理",
+      "aliases": [
+        "contingency management",
+        "CM",
+        "incentive-based intervention",
+        "行为列联管理",
+        "强化干预"
+      ],
+      "review_note": "基于阳性强化的行为干预方法。"
+    },
+    {
+      "canonical_id": "outcome:abstinence",
+      "type": "outcome_measure",
+      "preferred_name": "戒断率/保持率",
+      "aliases": [
+        "abstinence rate",
+        "continuous abstinence",
+        "point prevalence abstinence",
+        "retention rate",
+        "treatment retention",
+        "戒断率",
+        "保持率",
+        "持续戒断"
+      ],
+      "review_note": "戒断定义（生化验证/自我报告）和测量时间点很重要，提取时保留详细信息。"
+    },
+    {
+      "canonical_id": "outcome:craving",
+      "type": "craving_measure",
+      "preferred_name": "渴求感",
+      "aliases": [
+        "craving",
+        "cue-induced craving",
+        "craving score",
+        "VAS craving",
+        "渴求",
+        "心理渴求",
+        "线索诱发渴求"
+      ],
+      "review_note": "记录使用的量表（VAS, OCDUS, PACS等）和测量时间点。"
+    },
+    {
+      "canonical_id": "outcome:withdrawal",
+      "type": "withdrawal_symptom",
+      "preferred_name": "戒断症状",
+      "aliases": [
+        "withdrawal symptoms",
+        "withdrawal syndrome",
+        "abstinence syndrome",
+        "戒断症状",
+        "戒断综合征"
+      ],
+      "review_note": "记录使用的戒断症状量表和严重程度。"
+    },
+    {
+      "canonical_id": "outcome:relapse",
+      "type": "relapse_measure",
+      "preferred_name": "复发率",
+      "aliases": [
+        "relapse rate",
+        "time to relapse",
+        "lapse",
+        "复发率",
+        "复吸率",
+        "复发时间"
+      ],
+      "review_note": "记录随访时间长度和复发定义。"
+    },
+    {
+      "canonical_id": "outcome:retention",
+      "type": "outcome_measure",
+      "preferred_name": "治疗依从性/保持率",
+      "aliases": [
+        "treatment adherence",
+        "compliance",
+        "retention in treatment",
+        "治疗依从性",
+        "脱落率"
+      ],
+      "review_note": "包括脱落率和依从性指标。"
+    }
+  ]
+}

@@ -289,6 +289,7 @@ class AdminPanelTestCase(unittest.TestCase):
 
         config_status = client.get("/api/v1/admin/config-status")
         self.assertEqual(config_status.status_code, 200)
+        self.assertIn(config_status.json()["llm"]["provider"], {"deepseek", "mimo"})
         config_body = json.dumps(config_status.json(), ensure_ascii=False)
         self.assertNotIn("change-me-postgres-password", config_body)
         self.assertNotIn("MIMO_API_KEY", config_body)

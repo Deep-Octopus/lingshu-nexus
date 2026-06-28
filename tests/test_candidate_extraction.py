@@ -7,6 +7,9 @@ import sqlite3
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend" / "src"))
@@ -25,10 +28,13 @@ from lingshu_nexus.documents import (
 )
 from lingshu_nexus.extraction import (
     CandidateExtractionService,
+    DeepSeekProvider,
     FakeLlmProvider,
     InMemoryCandidateRepository,
     MiMoProvider,
     ProviderConfigurationError,
+    ProviderError,
+    create_llm_provider,
 )
 from lingshu_nexus.extraction.prompts import load_literature_extraction_prompt
 from lingshu_nexus.extraction.providers import LlmCompletionRequest
@@ -103,6 +109,32 @@ class CandidateExtractionTestCase(unittest.TestCase):
         self.assertIn("not valid JSON", run.failure_reason or "")
         self.assertIsNone(run.output_ref)
 
+    def test_document_without_research_evidence_is_a_successful_empty_run(self) -> None:
+        document, store = _parsed_document()
+        service = CandidateExtractionService(
+            repository=InMemoryCandidateRepository(),
+            object_store=store,
+            provider=FakeLlmProvider(
+                {
+                    "entities": [],
+                    "relations": [],
+                    "evidence_assertions": [],
+                    "study": {
+                        "document_type": "work_summary",
+                        "no_evidence_reason": "Administrative progress report",
+                    },
+                }
+            ),
+            prompt=load_literature_extraction_prompt(),
+        )
+
+        run = service.extract_document(document)
+
+        self.assertEqual(run.status, JobStatus.SUCCEEDED)
+        self.assertEqual(run.evidence_assertions, ())
+        self.assertEqual(run.study_metadata["document_type"], "work_summary")
+        self.assertIsNotNone(run.output_ref)
+
     def test_mimo_provider_requires_live_configuration_before_http_call(self) -> None:
         provider = MiMoProvider.from_settings(Settings())
 
@@ -110,6 +142,111 @@ class CandidateExtractionTestCase(unittest.TestCase):
             provider.complete(
                 request=_completion_request(),
             )
+
+    def test_mimo_provider_reports_actionable_timeout(self) -> None:
+        provider = MiMoProvider(
+            base_url="https://mimo.example.test/v1",
+            api_key="test-key",
+            model="test-model",
+            timeout_seconds=2,
+        )
+
+        with patch(
+            "lingshu_nexus.extraction.providers.httpx.post",
+            side_effect=httpx.ConnectTimeout("connect timed out"),
+        ), self.assertRaisesRegex(
+            ProviderError,
+            "timed out after 2 seconds.*MIMO_BASE_URL",
+        ):
+            provider.complete(request=_completion_request())
+
+    def test_mimo_provider_uses_api_key_header_for_token_plan(self) -> None:
+        provider = MiMoProvider(
+            base_url="https://token-plan-cn.xiaomimimo.com/v1",
+            api_key="tp-test-token",
+            model="test-model",
+        )
+        response = httpx.Response(
+            200,
+            request=httpx.Request("POST", "https://token-plan-cn.xiaomimimo.com/v1/chat/completions"),
+            json={
+                "model": "test-model",
+                "choices": [{"message": {"content": "{}"}}],
+            },
+        )
+
+        with patch("lingshu_nexus.extraction.providers.httpx.post", return_value=response) as post:
+            provider.complete(request=_completion_request())
+
+        headers = post.call_args.kwargs["headers"]
+        self.assertEqual(headers["api-key"], "tp-test-token")
+        self.assertNotIn("Authorization", headers)
+
+    def test_mimo_provider_explains_invalid_token_plan_key(self) -> None:
+        provider = MiMoProvider(
+            base_url="https://token-plan-cn.xiaomimimo.com/v1",
+            api_key="tp-expired-token",
+            model="test-model",
+        )
+        response = httpx.Response(
+            401,
+            request=httpx.Request("POST", "https://token-plan-cn.xiaomimimo.com/v1/chat/completions"),
+            json={"error": {"message": "Invalid API Key"}},
+        )
+
+        with patch(
+            "lingshu_nexus.extraction.providers.httpx.post",
+            return_value=response,
+        ), self.assertRaisesRegex(
+            ProviderError,
+            "Token Plan credential is invalid or expired.*plan-manage",
+        ):
+            provider.complete(request=_completion_request())
+
+    def test_deepseek_provider_uses_openai_compatible_request(self) -> None:
+        provider = DeepSeekProvider(
+            base_url="https://api.deepseek.com",
+            api_key="sk-deepseek-test",
+            model="deepseek-v4-flash",
+        )
+        response = httpx.Response(
+            200,
+            request=httpx.Request("POST", "https://api.deepseek.com/chat/completions"),
+            json={
+                "model": "deepseek-v4-flash",
+                "choices": [{"message": {"content": "{}"}}],
+            },
+        )
+
+        with patch("lingshu_nexus.extraction.providers.httpx.post", return_value=response) as post:
+            result = provider.complete(request=_completion_request())
+
+        self.assertEqual(result.provider, "deepseek")
+        self.assertEqual(post.call_args.args[0], "https://api.deepseek.com/chat/completions")
+        headers = post.call_args.kwargs["headers"]
+        self.assertEqual(headers["Authorization"], "Bearer sk-deepseek-test")
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["model"], "deepseek-v4-flash")
+        self.assertEqual(payload["response_format"], {"type": "json_object"})
+
+    def test_deepseek_provider_requires_api_key(self) -> None:
+        provider = DeepSeekProvider.from_settings(
+            Settings(llm_provider="deepseek", deepseek_api_key="")
+        )
+
+        with self.assertRaisesRegex(ProviderConfigurationError, "DEEPSEEK_API_KEY"):
+            provider.complete(request=_completion_request())
+
+    def test_provider_factory_selects_deepseek(self) -> None:
+        provider = create_llm_provider(
+            Settings(
+                llm_provider="deepseek",
+                deepseek_api_key="sk-test",
+                deepseek_model_id="deepseek-v4-pro",
+            )
+        )
+
+        self.assertIsInstance(provider, DeepSeekProvider)
 
     def test_candidate_extraction_migration_can_apply_and_drop(self) -> None:
         foundation = load_migration_pair("0001_foundation")

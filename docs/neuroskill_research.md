@@ -1,8 +1,8 @@
 # NeuroSkill/NeuroLoop 脑机智能体调研研究文档
 
-调研日期：2026-05-19  
-原始文章：[《脑机前沿 | 全球首个脑机智能体NeuroSkill》](https://mp.weixin.qq.com/s/OuKF0AKREftkLBFufKr3qw)  
-原文账号：脑机接口社区  
+调研日期：2026-05-19
+原始文章：[《脑机前沿 | 全球首个脑机智能体NeuroSkill》](https://mp.weixin.qq.com/s/OuKF0AKREftkLBFufKr3qw)
+原文账号：脑机接口社区
 原文发布时间：2026-04-04 09:19:21（北京时间，基于页面元数据换算）
 
 ## 1. 结论摘要

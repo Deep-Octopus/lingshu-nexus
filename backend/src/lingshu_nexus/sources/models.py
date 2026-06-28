@@ -41,6 +41,7 @@ class SourceArtifactStatus(StrEnum):
     DUPLICATE_SKIPPED = "duplicate_skipped"
     PARSE_FAILED = "parse_failed"
     EXTRACTION_FAILED = "extraction_failed"
+    NO_EVIDENCE_FOUND = "no_evidence_found"
     REVIEW_BATCH_CREATED = "review_batch_created"
 
 

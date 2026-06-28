@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { setLocale } from "./locales";
+
+const { t, locale } = useI18n();
+const workspaceSelectorRef = ref<HTMLElement | null>(null);
 
 type ViewMode = "admin" | "chat";
 
@@ -198,14 +203,40 @@ type StreamEvent = {
 };
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || "/api/v1";
-const domainId = "acupuncture";
+
+type Workspace = {
+  id: string;
+  nameKey: string;
+  descKey: string;
+  domainChipKey: string;
+};
+
+const workspaces: Workspace[] = [
+  {
+    id: "acupuncture",
+    nameKey: "app.acupuncture",
+    descKey: "app.acupunctureDesc",
+    domainChipKey: "admin.domainChip",
+  },
+  {
+    id: "addiction",
+    nameKey: "app.addiction",
+    descKey: "app.addictionDesc",
+    domainChipKey: "admin.domainChipAddiction",
+  },
+];
+
+const savedWorkspace = localStorage.getItem('lingshu-workspace') || "acupuncture";
+const domainId = ref<string>(savedWorkspace);
+const currentWorkspace = computed(() => workspaces.find(w => w.id === domainId.value) || workspaces[0]);
+
 const researcherActorId = "researcher-ui";
 const reviewerActorId = "reviewer-ui";
 const adminActorId = "admin-ui";
 const actorRole = "researcher";
 
 const activeView = ref<ViewMode>("admin");
-const adminStatus = ref("Loading");
+const adminStatus = ref(t("common.loading"));
 const adminError = ref("");
 const adminNotice = ref("");
 const uploadRequestDebug = ref("");
@@ -217,7 +248,7 @@ const sources = ref<SourceConnector[]>([]);
 const sourceRuns = ref<SourceRun[]>([]);
 const reviewAssertions = ref<ReviewAssertion[]>([]);
 const selectedAssertionId = ref("");
-const reviewReason = ref("Source locator verified.");
+const reviewReason = ref(t("messages.defaultReviewReason"));
 const editSubjectText = ref("");
 const editObjectText = ref("");
 const editPopulation = ref("");
@@ -232,7 +263,7 @@ const sourceConnectorStatus = ref("");
 const auditEvents = ref<AuditEvent[]>([]);
 const skills = ref<SkillOption[]>([]);
 const skillReports = ref<Record<string, SkillValidationReport>>({});
-const skillRunQuery = ref("Cymba Conchae frequency 25 Hz PSQI parameter");
+const skillRunQuery = ref(t("messages.defaultQuery"));
 const skillRunResult = ref("");
 const skillUploadId = ref("uploaded-readonly-skill");
 const skillUploadMd = ref(
@@ -271,12 +302,75 @@ const selectedSkillId = ref("");
 const sessionId = ref<string | null>(null);
 const messages = ref<ChatMessage[]>([]);
 const citations = ref<Citation[]>([]);
-const query = ref("Cymba Conchae frequency 25 Hz PSQI parameter");
-const statusText = ref("Ready");
+const query = ref(t("messages.defaultQuery"));
+const statusText = ref(t("common.ready"));
 const errorText = ref("");
 const feedbackNote = ref("");
 const feedbackStatus = ref("");
 const isStreaming = ref(false);
+
+// Language switcher
+const currentLocale = computed(() => locale.value);
+function toggleLanguage() {
+  const newLocale = currentLocale.value === 'zh' ? 'en' : 'zh';
+  setLocale(newLocale as 'zh' | 'en');
+  // Update reactive default texts
+  adminStatus.value = t("common.loading");
+  reviewReason.value = t("messages.defaultReviewReason");
+  skillRunQuery.value = t("messages.defaultQuery");
+  query.value = t("messages.defaultQuery");
+  statusText.value = t("common.ready");
+}
+
+// Workspace switcher
+const showWorkspaceSelector = ref(false);
+async function switchWorkspace(workspaceId: string) {
+  if (workspaceId === domainId.value) {
+    showWorkspaceSelector.value = false;
+    return;
+  }
+  domainId.value = workspaceId;
+  localStorage.setItem('lingshu-workspace', workspaceId);
+  showWorkspaceSelector.value = false;
+
+  // Reset all state
+  adminError.value = "";
+  adminNotice.value = "";
+  uploadRequestDebug.value = "";
+  uploadResults.value = [];
+  overview.value = null;
+  documents.value = [];
+  selectedDocument.value = null;
+  sources.value = [];
+  sourceRuns.value = [];
+  reviewAssertions.value = [];
+  selectedAssertionId.value = "";
+  reviewReason.value = t("messages.defaultReviewReason");
+  editSubjectText.value = "";
+  editObjectText.value = "";
+  editPopulation.value = "";
+  editOutcome.value = "";
+  selectedReleaseAssertionIds.value = [];
+  releasePreview.value = null;
+  releases.value = [];
+  activeReleaseId.value = null;
+  jobs.value = [];
+  sourceConnectorStatus.value = "";
+  auditEvents.value = [];
+  skillReports.value = {};
+  skillRunResult.value = "";
+  sessionId.value = null;
+  messages.value = [];
+  citations.value = [];
+  errorText.value = "";
+  feedbackNote.value = "";
+  feedbackStatus.value = "";
+  isStreaming.value = false;
+
+  // Reload data for new workspace
+  await refreshAdmin();
+  await loadSkills();
+}
 
 const chatSkills = computed(() =>
   skills.value.filter((skill) => skill.status === "active" && skill.scope === "read_only"),
@@ -293,14 +387,25 @@ const publishableAssertions = computed(() =>
 );
 const failedJobs = computed(() => jobs.value.filter((job) => job.status === "failed"));
 
+function handleClickOutside(event: MouseEvent) {
+  if (workspaceSelectorRef.value && !workspaceSelectorRef.value.contains(event.target as Node)) {
+    showWorkspaceSelector.value = false;
+  }
+}
+
 onMounted(async () => {
+  document.addEventListener('click', handleClickOutside);
   await refreshAdmin();
   await loadSkills();
 });
 
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
+
 async function refreshAdmin() {
   adminError.value = "";
-  adminStatus.value = "Loading";
+  adminStatus.value = t("common.loading");
   try {
     await Promise.all([
       loadOverview(),
@@ -313,20 +418,20 @@ async function refreshAdmin() {
       loadAuditEvents(),
     ]);
     syncReleaseSelection();
-    adminStatus.value = "Ready";
+    adminStatus.value = t("common.ready");
   } catch (error) {
-    adminError.value = error instanceof Error ? error.message : "Unable to load admin data";
-    adminStatus.value = "Blocked";
+    adminError.value = error instanceof Error ? error.message : t("messages.unableToLoadAdmin");
+    adminStatus.value = t("common.blocked");
   }
 }
 
 async function loadOverview() {
-  const response = await fetch(`${apiBase}/admin/overview?domain_id=${domainId}`);
+  const response = await fetch(`${apiBase}/admin/overview?domain_id=${domainId.value}`);
   overview.value = await readJson<AdminOverview>(response, "Admin overview");
 }
 
 async function loadDocuments() {
-  const response = await fetch(`${apiBase}/documents?domain_id=${domainId}`);
+  const response = await fetch(`${apiBase}/documents?domain_id=${domainId.value}`);
   const payload = await readJson<{ documents: DocumentSummary[] }>(response, "Document list");
   documents.value = payload.documents;
   if (!selectedDocument.value && payload.documents.length > 0) {
@@ -335,7 +440,7 @@ async function loadDocuments() {
 }
 
 async function selectDocument(documentId: string) {
-  const response = await fetch(`${apiBase}/documents/${documentId}?domain_id=${domainId}`);
+  const response = await fetch(`${apiBase}/documents/${documentId}?domain_id=${domainId.value}`);
   selectedDocument.value = await readJson<DocumentDetail>(response, "Document detail");
 }
 
@@ -352,11 +457,11 @@ async function uploadDocuments(event: Event) {
   adminNotice.value = "";
   uploadResults.value = [];
   formData.append("actor_id", adminActorId);
-  const endpoint = `${apiBase}/domains/${domainId}/sources:manual-sync`;
+  const endpoint = `${apiBase}/domains/${domainId.value}/sources:manual-sync`;
   uploadRequestDebug.value = `POST ${endpoint}`;
-  adminStatus.value = `Uploading ${input.files.length} file${input.files.length > 1 ? "s" : ""}`;
+  adminStatus.value = t("common.loading");
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+  const timeoutId = window.setTimeout(() => controller.abort(), 480000);
   try {
     console.info("LingShu document upload", {
       endpoint,
@@ -371,19 +476,44 @@ async function uploadDocuments(event: Event) {
     uploadResults.value = payload.artifacts;
     const reviewBatchCount = payload.run.review_batch_ids.length;
     const failedCount = payload.run.failed_artifact_count;
-    adminNotice.value = `Source sync ${payload.run.status}: ${reviewBatchCount} review batch${reviewBatchCount === 1 ? "" : "es"}, ${failedCount} failed artifact${failedCount === 1 ? "" : "s"}.`;
+    const duplicateCount = payload.run.duplicate_count;
+    const noEvidenceResults = payload.artifacts.filter(
+      (result) => result.status === "no_evidence_found",
+    );
+    const artifactDetails = payload.artifacts
+      .map((result) => `${result.filename}: ${result.message || result.status}`)
+      .join(" ");
     await refreshAdmin();
+    if (payload.run.status === "failed" || failedCount > 0) {
+      adminError.value = [
+        t("errors.syncFailed", { count: failedCount || payload.artifacts.length }),
+        artifactDetails || payload.run.error || t("errors.syncFailedCheckLogs"),
+      ].join(" ");
+      adminStatus.value = t("common.blocked");
+    } else if (duplicateCount > 0 && reviewBatchCount === 0) {
+      adminNotice.value = t("errors.uploadSkippedDuplicates", { count: duplicateCount });
+    } else if (noEvidenceResults.length > 0 && reviewBatchCount === 0) {
+      adminNotice.value = t("errors.noEvidenceFound", {
+        count: noEvidenceResults.length,
+        details: noEvidenceResults.map((result) => result.message).filter(Boolean).join(" ")
+      });
+    } else {
+      adminNotice.value = t("errors.syncComplete", {
+        batchCount: reviewBatchCount,
+        duplicateInfo: duplicateCount ? `, ${duplicateCount} ${t("admin.duplicatesSkipped")}` : ''
+      });
+    }
     const firstDocumentId = payload.artifacts.find((result) => result.document_id)?.document_id;
     if (firstDocumentId) {
       await selectDocument(firstDocumentId);
     }
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      adminError.value = `Document upload timed out before the API responded: ${endpoint}`;
+      adminError.value = t("errors.uploadTimeout", { endpoint });
     } else {
-      adminError.value = error instanceof Error ? error.message : "Document upload failed";
+      adminError.value = error instanceof Error ? error.message : t("errors.uploadFailed");
     }
-    adminStatus.value = "Blocked";
+    adminStatus.value = t("common.blocked");
   } finally {
     window.clearTimeout(timeoutId);
     input.value = "";
@@ -391,19 +521,19 @@ async function uploadDocuments(event: Event) {
 }
 
 async function reprocessDocument(documentId: string) {
-  if (!window.confirm("Reprocess this document and create a new parse attempt?")) {
+  if (!window.confirm(t("messages.reprocessConfirm"))) {
     return;
   }
-  const response = await fetch(`${apiBase}/documents/${documentId}:reprocess?domain_id=${domainId}`, {
+  const response = await fetch(`${apiBase}/documents/${documentId}:reprocess?domain_id=${domainId.value}`, {
     method: "POST",
   });
   await readJson(response, "Document reprocess");
-  adminNotice.value = "Reprocess attempt recorded.";
+  adminNotice.value = t("messages.reprocessSuccess");
   await refreshAdmin();
 }
 
 async function loadReviewAssertions() {
-  const response = await fetch(`${apiBase}/review-assertions?domain_id=${domainId}`);
+  const response = await fetch(`${apiBase}/review-assertions?domain_id=${domainId.value}`);
   const payload = await readJson<{ assertions: ReviewAssertion[] }>(response, "Review assertions");
   reviewAssertions.value = payload.assertions;
   if (!selectedAssertionId.value && payload.assertions.length > 0) {
@@ -426,7 +556,7 @@ async function reviewAssertion(action: "approve" | "reject" | "modify" | "mark-c
   }
   const reason = reviewReason.value.trim();
   if (!reason) {
-    adminError.value = "Review reason is required.";
+    adminError.value = t("messages.reviewReasonRequired");
     return;
   }
   const payload: Record<string, unknown> = {
@@ -440,7 +570,7 @@ async function reviewAssertion(action: "approve" | "reject" | "modify" | "mark-c
     payload.outcome = editOutcome.value || undefined;
   }
   if (action === "mark-conflict") {
-    const rawIds = window.prompt("Conflict assertion ids, comma separated");
+    const rawIds = window.prompt(t("messages.conflictPrompt"));
     const ids = (rawIds || "")
       .split(",")
       .map((item) => item.trim())
@@ -451,7 +581,7 @@ async function reviewAssertion(action: "approve" | "reject" | "modify" | "mark-c
     payload.conflict_with_assertion_ids = ids;
   }
   const response = await fetch(
-    `${apiBase}/review-assertions/${assertion.id}:${action}?domain_id=${domainId}`,
+    `${apiBase}/review-assertions/${assertion.id}:${action}?domain_id=${domainId.value}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -460,7 +590,7 @@ async function reviewAssertion(action: "approve" | "reject" | "modify" | "mark-c
   );
   const updated = await readJson<ReviewAssertion>(response, `Assertion ${action}`);
   selectAssertion(updated);
-  adminNotice.value = `Assertion ${action} recorded.`;
+  adminNotice.value = t("messages.assertionActionRecorded", { action });
   await loadReviewAssertions();
   await loadOverview();
   await loadAuditEvents();
@@ -476,10 +606,10 @@ function syncReleaseSelection() {
 
 async function previewRelease() {
   if (selectedReleaseAssertionIds.value.length === 0) {
-    adminError.value = "Select at least one approved or conflict assertion.";
+    adminError.value = t("messages.selectAssertions");
     return;
   }
-  const response = await fetch(`${apiBase}/domains/${domainId}/releases:preview`, {
+  const response = await fetch(`${apiBase}/domains/${domainId.value}/releases:preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ assertion_ids: selectedReleaseAssertionIds.value }),
@@ -489,13 +619,13 @@ async function previewRelease() {
 
 async function createRelease() {
   if (selectedReleaseAssertionIds.value.length === 0) {
-    adminError.value = "Select at least one approved or conflict assertion.";
+    adminError.value = t("messages.selectAssertions");
     return;
   }
-  if (!window.confirm("Create an immutable graph release snapshot?")) {
+  if (!window.confirm(t("messages.createReleaseConfirm"))) {
     return;
   }
-  const response = await fetch(`${apiBase}/domains/${domainId}/releases`, {
+  const response = await fetch(`${apiBase}/domains/${domainId.value}/releases`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -505,41 +635,41 @@ async function createRelease() {
     }),
   });
   await readJson<ReleaseRecord>(response, "Release create");
-  adminNotice.value = "Release snapshot created.";
+  adminNotice.value = t("messages.releaseCreated");
   await Promise.all([loadReleases(), loadOverview(), loadAuditEvents()]);
 }
 
 async function activateRelease(releaseId: string) {
-  if (!window.confirm("Activate this release for user-facing retrieval and chat?")) {
+  if (!window.confirm(t("messages.activateReleaseConfirm"))) {
     return;
   }
-  const response = await fetch(`${apiBase}/domains/${domainId}/releases/${releaseId}:activate`, {
+  const response = await fetch(`${apiBase}/domains/${domainId.value}/releases/${releaseId}:activate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ actor_id: adminActorId }),
   });
   await readJson(response, "Release activate");
-  adminNotice.value = "Release activated.";
+  adminNotice.value = t("messages.releaseActivated");
   await Promise.all([loadReleases(), loadOverview(), loadAuditEvents()]);
 }
 
 async function rollbackRelease(releaseId: string) {
-  const reason = window.prompt("Rollback reason");
-  if (!reason || !window.confirm("Rollback active release pointer to this release?")) {
+  const reason = window.prompt(t("messages.rollbackPrompt"));
+  if (!reason || !window.confirm(t("messages.rollbackConfirm"))) {
     return;
   }
-  const response = await fetch(`${apiBase}/domains/${domainId}/releases/${releaseId}:rollback`, {
+  const response = await fetch(`${apiBase}/domains/${domainId.value}/releases/${releaseId}:rollback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ actor_id: adminActorId, reason }),
   });
   await readJson(response, "Release rollback");
-  adminNotice.value = "Release rollback recorded.";
+  adminNotice.value = t("messages.rollbackSuccess");
   await Promise.all([loadReleases(), loadOverview(), loadAuditEvents()]);
 }
 
 async function loadReleases() {
-  const response = await fetch(`${apiBase}/domains/${domainId}/releases`);
+  const response = await fetch(`${apiBase}/domains/${domainId.value}/releases`);
   const payload = await readJson<{ active_release_id: string | null; releases: ReleaseRecord[] }>(
     response,
     "Release list",
@@ -549,7 +679,7 @@ async function loadReleases() {
 }
 
 async function loadJobs() {
-  const response = await fetch(`${apiBase}/admin/jobs?domain_id=${domainId}`);
+  const response = await fetch(`${apiBase}/admin/jobs?domain_id=${domainId.value}`);
   const payload = await readJson<{
     jobs: JobRun[];
     source_connector: { status: string; message: string };
@@ -559,49 +689,52 @@ async function loadJobs() {
 }
 
 async function loadSources() {
-  const response = await fetch(`${apiBase}/sources?domain_id=${domainId}`);
+  const response = await fetch(`${apiBase}/sources?domain_id=${domainId.value}`);
   const payload = await readJson<{ sources: SourceConnector[] }>(response, "Source list");
   sources.value = payload.sources;
 }
 
 async function loadSourceRuns() {
-  const response = await fetch(`${apiBase}/source-runs?domain_id=${domainId}`);
+  const response = await fetch(`${apiBase}/source-runs?domain_id=${domainId.value}`);
   const payload = await readJson<{ runs: SourceRun[] }>(response, "Source runs");
   sourceRuns.value = payload.runs.slice().reverse();
 }
 
 async function runSource(sourceId: string) {
-  if (!window.confirm(`Run SourceConnector ${sourceId}?`)) {
+  if (!window.confirm(t("messages.runSourceConfirm", { sourceId }))) {
     return;
   }
-  const response = await fetch(`${apiBase}/sources/${sourceId}:sync?domain_id=${domainId}`, {
+  const response = await fetch(`${apiBase}/sources/${sourceId}:sync?domain_id=${domainId.value}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ actor_id: adminActorId }),
   });
   const payload = await readJson<SourceSyncResponse>(response, "Source sync");
-  adminNotice.value = `Source sync ${payload.run.status}: ${payload.run.review_batch_ids.length} review batches.`;
+  adminNotice.value = t("messages.sourceSyncComplete", {
+    status: payload.run.status,
+    count: payload.run.review_batch_ids.length
+  });
   await Promise.all([loadJobs(), loadSources(), loadSourceRuns(), loadReviewAssertions(), loadAuditEvents()]);
 }
 
 async function loadAuditEvents() {
-  const response = await fetch(`${apiBase}/admin/audit-events?domain_id=${domainId}`);
+  const response = await fetch(`${apiBase}/admin/audit-events?domain_id=${domainId.value}`);
   const payload = await readJson<{ audit_events: AuditEvent[] }>(response, "Audit events");
   auditEvents.value = payload.audit_events.slice().reverse();
 }
 
 async function loadSkills() {
   try {
-    const response = await fetch(`${apiBase}/skills?domain_id=${domainId}`);
+    const response = await fetch(`${apiBase}/skills?domain_id=${domainId.value}`);
     const payload = await readJson<{ skills: SkillOption[] }>(response, "Skill list");
     skills.value = payload.skills;
   } catch (error) {
-    errorText.value = error instanceof Error ? error.message : "Unable to load Skills";
+    errorText.value = error instanceof Error ? error.message : t("errors.unableToLoadSkills");
   }
 }
 
 async function validateSkill(skillId: string) {
-  const response = await fetch(`${apiBase}/skills/${skillId}:validate?domain_id=${domainId}`, {
+  const response = await fetch(`${apiBase}/skills/${skillId}:validate?domain_id=${domainId.value}`, {
     method: "POST",
   });
   const report = await readJson<SkillValidationReport>(response, "Skill validation");
@@ -610,21 +743,22 @@ async function validateSkill(skillId: string) {
 
 async function setSkillStatus(skill: SkillOption, status: "enable" | "disable") {
   const action = status === "enable" ? "enable" : "disable";
-  if (!window.confirm(`${action} ${skill.id}?`)) {
+  const actionLabel = status === "enable" ? t("admin.enable") : t("admin.disable");
+  if (!window.confirm(t("messages.actionConfirm", { action: actionLabel, skillId: skill.id }))) {
     return;
   }
-  const response = await fetch(`${apiBase}/admin/skills/${skill.id}:${action}?domain_id=${domainId}`, {
+  const response = await fetch(`${apiBase}/admin/skills/${skill.id}:${action}?domain_id=${domainId.value}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ actor_id: adminActorId, actor_role: "admin" }),
   });
   await readJson<SkillOption>(response, `Skill ${action}`);
-  adminNotice.value = `Skill ${action} recorded.`;
+  adminNotice.value = t("messages.skillActionRecorded", { action: actionLabel });
   await Promise.all([loadSkills(), loadAuditEvents(), loadOverview()]);
 }
 
 async function uploadSkillPackage() {
-  if (!window.confirm("Upload and validate this Skill package?")) {
+  if (!window.confirm(t("messages.uploadSkillConfirm"))) {
     return;
   }
   const response = await fetch(`${apiBase}/admin/skills:upload`, {
@@ -640,12 +774,12 @@ async function uploadSkillPackage() {
     }),
   });
   const skill = await readJson<SkillOption>(response, "Skill upload");
-  adminNotice.value = `Skill ${skill.id} uploaded.`;
+  adminNotice.value = t("messages.skillUploaded", { skillId: skill.id });
   await Promise.all([loadSkills(), loadAuditEvents(), loadOverview()]);
 }
 
 async function executeSkill(skillId: string) {
-  const response = await fetch(`${apiBase}/domains/${domainId}/skills:execute`, {
+  const response = await fetch(`${apiBase}/domains/${domainId.value}/skills:execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -704,9 +838,9 @@ async function ensureSession(): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      domain_id: domainId,
+      domain_id: domainId.value,
       actor_id: researcherActorId,
-      title: "Evidence chat",
+      title: t("chat.evidenceChat"),
     }),
   });
   const payload = await readJson<{ id: string }>(response, "Session creation");
@@ -723,7 +857,7 @@ async function submitQuestion() {
   feedbackStatus.value = "";
   citations.value = [];
   isStreaming.value = true;
-  statusText.value = "Starting retrieval";
+  statusText.value = t("common.startingRetrieval");
 
   messages.value.push({
     id: `local-user-${Date.now()}`,
@@ -740,7 +874,7 @@ async function submitQuestion() {
   try {
     const activeSessionId = await ensureSession();
     const response = await fetch(
-      `${apiBase}/chat/sessions/${activeSessionId}/messages:stream?domain_id=${domainId}`,
+      `${apiBase}/chat/sessions/${activeSessionId}/messages:stream?domain_id=${domainId.value}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -756,13 +890,13 @@ async function submitQuestion() {
     const stream = await readSseStream(response);
     await readSse(stream, (streamEvent) => handleStreamEvent(streamEvent, assistantMessage));
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown chat error";
+    const message = error instanceof Error ? error.message : t("errors.unknownChatError");
     errorText.value = message;
     assistantMessage.content = message;
   } finally {
     isStreaming.value = false;
     if (!errorText.value) {
-      statusText.value = "Complete";
+      statusText.value = t("common.complete");
     }
   }
 }
@@ -810,7 +944,16 @@ function parseSseBlock(block: string): StreamEvent | null {
 function handleStreamEvent(streamEvent: StreamEvent, assistantMessage: ChatMessage) {
   if (streamEvent.event === "retrieval") {
     const stage = streamEvent.data.stage;
-    statusText.value = typeof stage === "string" ? stage : "Retrieving";
+    // Map backend statuses to localized ones
+    if (typeof stage === "string") {
+      if (stage.toLowerCase().includes('retriev')) {
+        statusText.value = t("common.retrieving");
+      } else {
+        statusText.value = stage;
+      }
+    } else {
+      statusText.value = t("common.retrieving");
+    }
     return;
   }
   if (streamEvent.event === "text") {
@@ -837,25 +980,25 @@ function handleStreamEvent(streamEvent: StreamEvent, assistantMessage: ChatMessa
     if (isReleasePayload(release)) {
       assistantMessage.release = release;
     }
-    statusText.value = "Complete";
+    statusText.value = t("common.complete");
     return;
   }
   if (streamEvent.event === "error") {
     const message = streamEvent.data.message;
-    errorText.value = typeof message === "string" ? message : "Chat stream error";
+    errorText.value = typeof message === "string" ? message : t("errors.chatStreamError");
     assistantMessage.content = errorText.value;
-    statusText.value = "Blocked";
+    statusText.value = t("common.blocked");
   }
 }
 
 async function submitFeedback(rating: "helpful" | "not_helpful" | "correction") {
   const message = lastAssistantMessage.value;
   if (!sessionId.value || !message || message.id.startsWith("local-")) {
-    feedbackStatus.value = "No completed assistant message to review.";
+    feedbackStatus.value = t("messages.noCompletedMessage");
     return;
   }
   const response = await fetch(
-    `${apiBase}/chat/sessions/${sessionId.value}/messages/${message.id}:feedback?domain_id=${domainId}`,
+    `${apiBase}/chat/sessions/${sessionId.value}/messages/${message.id}:feedback?domain_id=${domainId.value}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -866,14 +1009,14 @@ async function submitFeedback(rating: "helpful" | "not_helpful" | "correction") 
       }),
     },
   );
-  feedbackStatus.value = response.ok ? "Feedback recorded." : `Feedback failed: ${response.status}`;
+  feedbackStatus.value = response.ok ? t("messages.feedbackRecorded") : t("messages.feedbackFailed", { status: response.status });
   if (response.ok) {
     feedbackNote.value = "";
   }
 }
 
 function citationHref(citation: Citation) {
-  return `${apiBase}/documents/${citation.document_id}?domain_id=${domainId}#${citation.chunk_id}`;
+  return `${apiBase}/documents/${citation.document_id}?domain_id=${domainId.value}#${citation.chunk_id}`;
 }
 
 function statusClass(status: string) {
@@ -899,32 +1042,99 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
 <template>
   <main class="app-shell" aria-labelledby="app-title">
     <aside class="rail">
-      <p class="eyebrow">LingShu Nexus</p>
-      <h1 id="app-title">Research Console</h1>
-      <nav class="nav-tabs" aria-label="Workspace">
+      <div class="brand-lockup">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span class="brand-mark" aria-hidden="true">灵</span>
+          <div>
+            <p class="eyebrow">{{ t('app.brandName') }}</p>
+            <h1 id="app-title">{{ t('app.title') }}</h1>
+          </div>
+        </div>
+        <button type="button" class="lang-toggle" @click="toggleLanguage" :title="currentLocale === 'zh' ? 'Switch to English' : '切换到中文'">
+          {{ currentLocale === 'zh' ? 'EN' : '中' }}
+        </button>
+      </div>
+      <nav class="nav-tabs" :aria-label="t('app.workspace')">
         <button type="button" :class="{ active: activeView === 'admin' }" @click="activeView = 'admin'">
-          Manage
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M4 5.5h16M4 12h16M4 18.5h16" />
+            <circle cx="8" cy="5.5" r="1.75" />
+            <circle cx="16" cy="12" r="1.75" />
+            <circle cx="10" cy="18.5" r="1.75" />
+          </svg>
+          <span>
+            <strong>{{ t('nav.manage') }}</strong>
+            <small>{{ t('nav.manageDesc') }}</small>
+          </span>
         </button>
         <button type="button" :class="{ active: activeView === 'chat' }" @click="activeView = 'chat'">
-          Chat
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M6.5 18.5 3.5 21v-5.4A8.5 8.5 0 1 1 6.5 18.5Z" />
+            <path d="M8 10.5h8M8 14h5" />
+          </svg>
+          <span>
+            <strong>{{ t('nav.chat') }}</strong>
+            <small>{{ t('nav.chatDesc') }}</small>
+          </span>
         </button>
       </nav>
-      <div class="rail-status" :class="{ blocked: Boolean(adminError || errorText) }">
-        {{ activeView === "admin" ? adminStatus : statusText }}
+      <div ref="workspaceSelectorRef" class="workspace-selector">
+        <button type="button" class="workspace-trigger" @click="showWorkspaceSelector = !showWorkspaceSelector">
+          <div class="rail-context">
+            <span>{{ t('app.workspace') }}</span>
+            <strong>{{ t(currentWorkspace.nameKey) }}</strong>
+            <p>{{ t(currentWorkspace.descKey) }}</p>
+          </div>
+          <svg class="chevron" :class="{ open: showWorkspaceSelector }" aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        <div v-if="showWorkspaceSelector" class="workspace-dropdown">
+          <p class="dropdown-label">{{ t('app.selectWorkspace') }}</p>
+          <button
+            v-for="ws in workspaces"
+            :key="ws.id"
+            type="button"
+            class="workspace-option"
+            :class="{ active: ws.id === domainId }"
+            @click="switchWorkspace(ws.id)"
+          >
+            <strong>{{ t(ws.nameKey) }}</strong>
+            <small>{{ t(ws.descKey) }}</small>
+          </button>
+        </div>
       </div>
-      <button type="button" class="secondary" @click="refreshAdmin">Refresh</button>
+      <div class="rail-footer">
+        <div class="rail-status" :class="{ blocked: Boolean(adminError || errorText) }">
+          <i aria-hidden="true"></i>
+          {{ activeView === "admin" ? adminStatus : statusText }}
+        </div>
+        <button type="button" class="refresh-button" :aria-label="t('app.refresh')" @click="refreshAdmin">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M19 8a7 7 0 1 0 1 6" />
+            <path d="M19 3v5h-5" />
+          </svg>
+        </button>
+      </div>
     </aside>
 
     <section v-if="activeView === 'admin'" class="admin-workspace" aria-label="Management panel">
       <header class="page-header">
-        <div>
-          <h2>Management</h2>
-          <p class="notice">内部科研证据辅助，不作为诊疗建议。</p>
+        <div class="page-title-group">
+          <p class="section-kicker">{{ t('admin.kicker') }}</p>
+          <h2>{{ t('admin.title') }}</h2>
+          <p class="notice">{{ t('admin.notice') }}</p>
         </div>
-        <label class="upload-button">
-          Upload
-          <input type="file" multiple accept=".md,.markdown,.pdf" @change="uploadDocuments" />
-        </label>
+        <div class="header-actions">
+          <span class="domain-chip">{{ t(currentWorkspace.domainChipKey) }}</span>
+          <label class="upload-button">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M5 14v5h14v-5" />
+            </svg>
+            {{ t('admin.uploadDocuments') }}
+            <input type="file" multiple accept=".md,.markdown,.pdf" @change="uploadDocuments" />
+          </label>
+        </div>
       </header>
 
       <p class="error" v-if="adminError">{{ adminError }}</p>
@@ -936,9 +1146,9 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
             <strong>{{ result.filename }}</strong>
             <small>
               {{ result.status }}
-              <template v-if="result.document_id"> · doc {{ result.document_id }}</template>
-              <template v-if="result.candidate_run_id"> · candidate {{ result.candidate_run_id }}</template>
-              <template v-if="result.review_batch_id"> · review {{ result.review_batch_id }}</template>
+              <template v-if="result.document_id"> · {{ t('admin.docLabel') }} {{ result.document_id }}</template>
+              <template v-if="result.candidate_run_id"> · {{ t('admin.candidateLabel') }} {{ result.candidate_run_id }}</template>
+              <template v-if="result.review_batch_id"> · {{ t('admin.reviewLabel') }} {{ result.review_batch_id }}</template>
               <template v-if="result.message"> · {{ result.message }}</template>
             </small>
           </span>
@@ -948,26 +1158,26 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
 
       <section class="metric-grid" v-if="overview">
         <article>
-          <span>Documents</span>
+          <span>{{ t('admin.documents') }}</span>
           <strong>{{ overview.documents_total }}</strong>
-          <small>{{ overview.document_status_counts.PARSED || 0 }} parsed</small>
+          <small>{{ overview.document_status_counts.PARSED || 0 }} {{ t('admin.parsed') }}</small>
         </article>
         <article>
-          <span>Pending Review</span>
+          <span>{{ t('admin.pendingReview') }}</span>
           <strong>{{ overview.pending_review_count }}</strong>
-          <small>{{ overview.review_status_counts.approved || 0 }} approved</small>
+          <small>{{ overview.review_status_counts.approved || 0 }} {{ t('admin.approved') }}</small>
         </article>
         <article>
-          <span>Active Release</span>
-          <strong>{{ overview.active_release?.version || "none" }}</strong>
-          <small>{{ overview.active_release?.assertion_count || 0 }} assertions</small>
+          <span>{{ t('admin.activeRelease') }}</span>
+          <strong>{{ overview.active_release?.version || t('common.none') }}</strong>
+          <small>{{ overview.active_release?.assertion_count || 0 }} {{ t('admin.assertions') }}</small>
         </article>
         <article>
-          <span>Failed Jobs</span>
+          <span>{{ t('admin.failedJobs') }}</span>
           <strong>{{ overview.failed_jobs_count }}</strong>
           <small>
-            {{ overview.source_sync_summary.runs_total }} source runs ·
-            {{ overview.source_sync_summary.duplicates_skipped }} duplicates skipped
+            {{ overview.source_sync_summary.runs_total }} {{ t('admin.sourceRuns') }} ·
+            {{ overview.source_sync_summary.duplicates_skipped }} {{ t('admin.duplicatesSkipped') }}
           </small>
         </article>
       </section>
@@ -975,7 +1185,7 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
       <section class="split-layout">
         <div class="work-section">
           <div class="section-heading">
-            <h3>Documents</h3>
+            <h3>{{ t('admin.documents') }}</h3>
             <span>{{ documents.length }}</span>
           </div>
           <div class="table-list">
@@ -989,7 +1199,7 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
             >
               <span>
                 <strong>{{ document.title }}</strong>
-                <small>{{ document.filename }} · {{ document.chunk_count }} chunks</small>
+                <small>{{ document.filename }} · {{ document.chunk_count }} {{ t('admin.chunks') }}</small>
               </span>
               <b :class="['pill', statusClass(document.status)]">{{ document.status }}</b>
             </button>
@@ -998,19 +1208,19 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
 
         <div class="work-section detail-pane">
           <div class="section-heading">
-            <h3>Document Detail</h3>
+            <h3>{{ t('admin.documentDetail') }}</h3>
             <button
               v-if="selectedDocument"
               type="button"
               class="secondary compact"
               @click="reprocessDocument(selectedDocument.id)"
             >
-              Reprocess
+              {{ t('admin.reprocess') }}
             </button>
           </div>
           <template v-if="selectedDocument">
             <p class="muted">
-              {{ selectedDocument.status }} · attempts {{ selectedDocument.parse_attempts }}
+              {{ selectedDocument.status }} · {{ t('admin.attempts') }} {{ selectedDocument.parse_attempts }}
             </p>
             <p class="error inline" v-if="selectedDocument.failure_reason">
               {{ selectedDocument.failure_reason }}
@@ -1020,14 +1230,14 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
               <p>{{ chunk.text }}</p>
             </article>
           </template>
-          <p v-else class="muted">No document selected.</p>
+          <p v-else class="muted">{{ t('admin.noDocumentSelected') }}</p>
         </div>
       </section>
 
       <section class="split-layout">
         <div class="work-section">
           <div class="section-heading">
-            <h3>Review Workbench</h3>
+            <h3>{{ t('admin.reviewWorkbench') }}</h3>
             <span>{{ reviewAssertions.length }}</span>
           </div>
           <div class="assertion-list">
@@ -1052,52 +1262,52 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
 
         <div class="work-section detail-pane">
           <div class="section-heading">
-            <h3>Decision</h3>
+            <h3>{{ t('admin.decision') }}</h3>
             <span v-if="selectedAssertion">{{ selectedAssertion.id }}</span>
           </div>
           <template v-if="selectedAssertion">
             <label>
-              <span>Subject</span>
+              <span>{{ t('admin.subject') }}</span>
               <input v-model="editSubjectText" />
             </label>
             <label>
-              <span>Object</span>
+              <span>{{ t('admin.object') }}</span>
               <input v-model="editObjectText" />
             </label>
             <label>
-              <span>Population</span>
+              <span>{{ t('admin.population') }}</span>
               <input v-model="editPopulation" />
             </label>
             <label>
-              <span>Outcome</span>
+              <span>{{ t('admin.outcome') }}</span>
               <input v-model="editOutcome" />
             </label>
             <label>
-              <span>Reason</span>
+              <span>{{ t('admin.reason') }}</span>
               <textarea v-model="reviewReason" rows="3" />
             </label>
             <div class="action-grid">
-              <button type="button" @click="reviewAssertion('approve')">Approve</button>
-              <button type="button" class="secondary" @click="reviewAssertion('modify')">Modify</button>
+              <button type="button" @click="reviewAssertion('approve')">{{ t('admin.approve') }}</button>
+              <button type="button" class="secondary" @click="reviewAssertion('modify')">{{ t('admin.modify') }}</button>
               <button type="button" class="warning" @click="reviewAssertion('mark-conflict')">
-                Conflict
+                {{ t('admin.conflict') }}
               </button>
-              <button type="button" class="danger" @click="reviewAssertion('reject')">Reject</button>
+              <button type="button" class="danger" @click="reviewAssertion('reject')">{{ t('admin.reject') }}</button>
             </div>
           </template>
-          <p v-else class="muted">No assertion selected.</p>
+          <p v-else class="muted">{{ t('admin.noAssertionSelected') }}</p>
         </div>
       </section>
 
       <section class="split-layout">
         <div class="work-section">
           <div class="section-heading">
-            <h3>Graph Releases</h3>
-            <button type="button" class="secondary compact" @click="previewRelease">Preview</button>
+            <h3>{{ t('admin.graphReleases') }}</h3>
+            <button type="button" class="secondary compact" @click="previewRelease">{{ t('admin.preview') }}</button>
           </div>
           <div class="release-builder">
             <label>
-              <span>Version</span>
+              <span>{{ t('admin.version') }}</span>
               <input v-model="releaseVersion" />
             </label>
             <div class="checkbox-list">
@@ -1110,27 +1320,27 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
                 <span>{{ assertion.subject.text }} → {{ assertion.object.text }}</span>
               </label>
             </div>
-            <button type="button" @click="createRelease">Create Release</button>
+            <button type="button" @click="createRelease">{{ t('admin.createRelease') }}</button>
           </div>
           <div v-if="releasePreview" class="preview-block">
-            <strong>{{ releasePreview.included_assertion_ids.length }} included</strong>
-            <span>{{ releasePreview.additions.length }} additions</span>
-            <span>{{ releasePreview.removals.length }} removals</span>
-            <span>{{ releasePreview.excluded_assertions.length }} excluded</span>
+            <strong>{{ releasePreview.included_assertion_ids.length }} {{ t('admin.included') }}</strong>
+            <span>{{ releasePreview.additions.length }} {{ t('admin.additions') }}</span>
+            <span>{{ releasePreview.removals.length }} {{ t('admin.removals') }}</span>
+            <span>{{ releasePreview.excluded_assertions.length }} {{ t('admin.excluded') }}</span>
           </div>
         </div>
 
         <div class="work-section">
           <div class="section-heading">
-            <h3>Release History</h3>
+            <h3>{{ t('admin.releaseHistory') }}</h3>
             <span>{{ releases.length }}</span>
           </div>
           <article v-for="release in releases" :key="release.id" class="release-row">
             <span>
               <strong>{{ release.version }}</strong>
-              <small>{{ release.assertion_count }} assertions · {{ release.id }}</small>
+              <small>{{ release.assertion_count }} {{ t('admin.assertions') }} · {{ release.id }}</small>
             </span>
-            <b v-if="release.id === activeReleaseId" class="pill active-release">active</b>
+            <b v-if="release.id === activeReleaseId" class="pill active-release">{{ t('common.active') }}</b>
             <div class="row-actions">
               <button
                 type="button"
@@ -1138,10 +1348,10 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
                 :disabled="release.id === activeReleaseId"
                 @click="activateRelease(release.id)"
               >
-                Activate
+                {{ t('admin.activate') }}
               </button>
               <button type="button" class="warning compact" @click="rollbackRelease(release.id)">
-                Rollback
+                {{ t('admin.rollback') }}
               </button>
             </div>
           </article>
@@ -1151,28 +1361,28 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
       <section class="split-layout">
         <div class="work-section">
           <div class="section-heading">
-            <h3>Skills</h3>
+            <h3>{{ t('admin.skills') }}</h3>
             <span>{{ skills.length }}</span>
           </div>
           <details class="upload-package">
-            <summary>Upload Skill Package</summary>
+            <summary>{{ t('admin.uploadSkillPackage') }}</summary>
             <label>
-              <span>Skill ID</span>
+              <span>{{ t('admin.skillId') }}</span>
               <input v-model="skillUploadId" />
             </label>
             <label>
-              <span>SKILL.md</span>
+              <span>{{ t('admin.skillMd') }}</span>
               <textarea v-model="skillUploadMd" rows="7" />
             </label>
             <label>
-              <span>registry.yaml</span>
+              <span>{{ t('admin.registryYaml') }}</span>
               <textarea v-model="skillUploadRegistry" rows="9" />
             </label>
             <label>
-              <span>tests/cases.yaml</span>
+              <span>{{ t('admin.testsCasesYaml') }}</span>
               <textarea v-model="skillUploadTests" rows="4" />
             </label>
-            <button type="button" @click="uploadSkillPackage">Upload Package</button>
+            <button type="button" @click="uploadSkillPackage">{{ t('admin.uploadPackage') }}</button>
           </details>
           <article v-for="skill in skills" :key="skill.id" class="skill-row">
             <span>
@@ -1182,7 +1392,7 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
             <b :class="['pill', statusClass(skill.status)]">{{ skill.status }}</b>
             <div class="row-actions">
               <button type="button" class="secondary compact" @click="validateSkill(skill.id)">
-                Validate
+                {{ t('admin.validate') }}
               </button>
               <button
                 type="button"
@@ -1190,7 +1400,7 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
                 v-if="skill.status !== 'active'"
                 @click="setSkillStatus(skill, 'enable')"
               >
-                Enable
+                {{ t('admin.enable') }}
               </button>
               <button
                 type="button"
@@ -1198,18 +1408,18 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
                 v-if="skill.status === 'active'"
                 @click="setSkillStatus(skill, 'disable')"
               >
-                Disable
+                {{ t('admin.disable') }}
               </button>
               <button type="button" class="secondary compact" @click="executeSkill(skill.id)">
-                Run
+                {{ t('admin.run') }}
               </button>
             </div>
             <p v-if="skillReports[skill.id]" class="muted">
-              validation {{ skillReports[skill.id].valid ? "passed" : "failed" }}
+              {{ skillReports[skill.id].valid ? t('admin.validationPassed') : t('admin.validationFailed') }}
             </p>
           </article>
           <label>
-            <span>Skill Test Query</span>
+            <span>{{ t('admin.skillTestQuery') }}</span>
             <textarea v-model="skillRunQuery" rows="3" />
           </label>
           <pre v-if="skillRunResult" class="result-output">{{ skillRunResult }}</pre>
@@ -1217,8 +1427,8 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
 
         <div class="work-section">
           <div class="section-heading">
-            <h3>Jobs & Audit</h3>
-            <span>{{ failedJobs.length }} failed</span>
+            <h3>{{ t('admin.jobsAudit') }}</h3>
+            <span>{{ failedJobs.length }} {{ t('common.failed') }}</span>
           </div>
           <p class="muted">{{ sourceConnectorStatus }}</p>
           <div class="data-source-list">
@@ -1226,8 +1436,8 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
               <span>
                 <strong>{{ source.name }}</strong>
                 <small>
-                  {{ source.connector_type }} · {{ source.enabled ? "enabled" : "disabled" }}
-                  <template v-if="source.schedule.enabled"> · scheduled</template>
+                  {{ source.connector_type }} · {{ source.enabled ? t('common.enabled') : t('common.disabled') }}
+                  <template v-if="source.schedule.enabled"> · {{ t('common.scheduled') }}</template>
                 </small>
               </span>
               <button
@@ -1236,20 +1446,20 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
                 class="secondary compact"
                 @click="runSource(source.id)"
               >
-                Sync
+                {{ t('admin.sync') }}
               </button>
             </article>
           </div>
           <article v-for="run in sourceRuns" :key="run.id" class="job-row">
             <b :class="['pill', statusClass(run.status)]">{{ run.status }}</b>
             <span>
-              source {{ run.source_id }} · attempt {{ run.attempt }} ·
-              {{ run.review_batch_ids.length }} review batches
+              {{ t('admin.source') }} {{ run.source_id }} · {{ t('admin.attempt') }} {{ run.attempt }} ·
+              {{ run.review_batch_ids.length }} {{ t('admin.reviewBatches') }}
             </span>
             <small v-if="run.error">{{ run.error }}</small>
             <small v-else>
-              {{ run.duplicate_count }} duplicates ·
-              {{ run.impact_summary.potential_conflict_count || 0 }} conflict hints
+              {{ run.duplicate_count }} {{ t('admin.duplicates') }} ·
+              {{ run.impact_summary.potential_conflict_count || 0 }} {{ t('admin.conflictHints') }}
             </small>
           </article>
           <article v-for="job in jobs" :key="job.id" class="job-row">
@@ -1271,17 +1481,21 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
     <section v-else class="chat-workspace" aria-label="Evidence chat">
       <section class="chat-surface">
         <header class="topbar">
-          <div>
-            <p class="eyebrow">LingShu Nexus</p>
-            <h2>Evidence Chat</h2>
+          <div class="page-title-group compact-title">
+            <p class="section-kicker">{{ t('chat.kicker') }}</p>
+            <h2>{{ t('chat.title') }}</h2>
+            <p class="notice">{{ t('chat.notice') }}</p>
           </div>
-          <div class="rail-status" :class="{ blocked: Boolean(errorText) }">{{ statusText }}</div>
+          <div class="rail-status" :class="{ blocked: Boolean(errorText) }">
+            <i aria-hidden="true"></i>
+            {{ statusText }}
+          </div>
         </header>
 
         <div class="message-list" aria-live="polite">
           <article v-if="messages.length === 0" class="empty-state">
-            <h3>内部科研证据辅助</h3>
-            <p>回答仅检索 active release 中已审核发布的证据，并随流式事件返回引用。</p>
+            <h3>{{ t('chat.emptyStateTitle') }}</h3>
+            <p>{{ t('chat.emptyStateBody') }}</p>
           </article>
           <article
             v-for="message in messages"
@@ -1290,30 +1504,30 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
             :class="message.role"
           >
             <div class="message-meta">
-              <span>{{ message.role === "user" ? "Researcher" : "LingShu" }}</span>
+              <span>{{ message.role === "user" ? t('chat.researcher') : t('chat.lingShu') }}</span>
               <span v-if="message.skill">{{ message.skill.id }} {{ message.skill.version }}</span>
-              <span v-if="message.release">release {{ message.release.version || "unknown" }}</span>
+              <span v-if="message.release">{{ t('chat.release') }} {{ message.release.version || t('chat.unknown') }}</span>
             </div>
-            <p>{{ message.content || "Streaming..." }}</p>
+            <p>{{ message.content || t('chat.streaming') }}</p>
           </article>
         </div>
 
         <form class="composer" @submit.prevent="submitQuestion">
           <label>
-            <span>Skill</span>
+            <span>{{ t('chat.skill') }}</span>
             <select v-model="selectedSkillId" :disabled="isStreaming">
-              <option value="">Auto route</option>
+              <option value="">{{ t('chat.autoRoute') }}</option>
               <option v-for="skill in chatSkills" :key="skill.id" :value="skill.id">
                 {{ skill.name }} {{ skill.version }}
               </option>
             </select>
           </label>
           <label class="query-field">
-            <span>Question</span>
+            <span>{{ t('chat.question') }}</span>
             <textarea v-model="query" rows="3" :disabled="isStreaming" />
           </label>
           <button type="submit" :disabled="isStreaming || !query.trim()">
-            {{ isStreaming ? "Streaming" : "Send" }}
+            {{ isStreaming ? t('chat.streamingButton') : t('chat.send') }}
           </button>
         </form>
 
@@ -1322,8 +1536,8 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
 
       <aside class="citation-panel" aria-label="Citations and feedback">
         <section class="panel-section">
-          <h3>Citations</h3>
-          <p v-if="citations.length === 0" class="muted">No citations returned yet.</p>
+          <h3>{{ t('chat.citations') }}</h3>
+          <p v-if="citations.length === 0" class="muted">{{ t('chat.noCitations') }}</p>
           <a
             v-for="citation in citations"
             :key="`${citation.document_id}-${citation.chunk_id}`"
@@ -1339,15 +1553,15 @@ function isReleasePayload(value: unknown): value is { id: string | null; version
         </section>
 
         <section class="panel-section">
-          <h3>Feedback</h3>
+          <h3>{{ t('chat.feedback') }}</h3>
           <div class="feedback-actions">
-            <button type="button" @click="submitFeedback('helpful')">Useful</button>
+            <button type="button" @click="submitFeedback('helpful')">{{ t('chat.useful') }}</button>
             <button type="button" class="secondary" @click="submitFeedback('not_helpful')">
-              Not useful
+              {{ t('chat.notUseful') }}
             </button>
           </div>
-          <textarea v-model="feedbackNote" rows="4" placeholder="Correction note" />
-          <button type="button" @click="submitFeedback('correction')">Submit correction</button>
+          <textarea v-model="feedbackNote" rows="4" :placeholder="t('chat.correctionNote')" />
+          <button type="button" @click="submitFeedback('correction')">{{ t('chat.submitCorrection') }}</button>
           <p class="muted">{{ feedbackStatus }}</p>
         </section>
       </aside>

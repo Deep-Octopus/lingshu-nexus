@@ -16,7 +16,7 @@ from lingshu_nexus.api.routes.sources import router as sources_router
 from lingshu_nexus.chat import create_chat_service
 from lingshu_nexus.config.settings import get_settings
 from lingshu_nexus.documents import create_document_service
-from lingshu_nexus.extraction import MiMoProvider
+from lingshu_nexus.extraction import create_llm_provider
 from lingshu_nexus.observability import ObservabilityRecorder
 from lingshu_nexus.persistence.object_store import LocalFilesystemObjectStore
 from lingshu_nexus.retrieval import create_retrieval_service
@@ -52,7 +52,7 @@ def create_app() -> FastAPI:
         object_store=object_store,
         document_service=app.state.document_service,
         review_service=app.state.review_release_service,
-        provider=MiMoProvider.from_settings(settings),
+        provider=create_llm_provider(settings),
         observability=app.state.observability,
     )
     app.state.retrieval_service = create_retrieval_service(

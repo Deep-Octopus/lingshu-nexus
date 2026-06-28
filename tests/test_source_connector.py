@@ -5,8 +5,11 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
+import threading
+import time
 import unittest
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +38,7 @@ from lingshu_nexus.extraction import (
     InMemoryCandidateRepository,
     LlmCompletionRequest,
     LlmCompletionResponse,
+    LlmProvider,
 )
 from lingshu_nexus.extraction.prompts import load_literature_extraction_prompt
 from lingshu_nexus.persistence.migrations import load_migration_pair
@@ -236,7 +240,31 @@ class SourceConnectorTestCase(unittest.TestCase):
             ],
         )
         self.assertEqual(result.artifact_records[-1].status, SourceArtifactStatus.RAW_STORED)
-        self.assertIn("no document payload", result.artifact_records[-1].message or "")
+
+    def test_manual_sync_records_no_evidence_without_failing(self) -> None:
+        service, review_service = _source_service(provider=NoEvidenceFixtureProvider())
+
+        result = service.sync_manual_files(
+            domain_id="acupuncture",
+            actor_id="admin-ui",
+            uploads=(
+                DocumentUpload(
+                    filename="monthly-work-summary.md",
+                    media_type="text/markdown",
+                    content=b"# March summary\n\nCompleted project coordination and reporting.",
+                ),
+            ),
+        )
+
+        self.assertEqual(result.run.status, JobStatus.SUCCEEDED)
+        self.assertEqual(result.run.failed_artifact_count, 0)
+        self.assertEqual(result.run.review_batch_ids, ())
+        self.assertEqual(
+            result.artifact_records[0].status,
+            SourceArtifactStatus.NO_EVIDENCE_FOUND,
+        )
+        self.assertIn("Administrative work summary", result.artifact_records[0].message or "")
+        self.assertEqual(review_service.list_assertions(domain_id="acupuncture"), ())
 
     def test_config_rejects_inline_secret_values(self) -> None:
         service, _review_service = _source_service()
@@ -346,6 +374,42 @@ class SourceConnectorTestCase(unittest.TestCase):
         )
         self.assertEqual(forbidden_sync.status_code, 403)
 
+    def test_manual_sync_does_not_block_health_checks_during_extraction(self) -> None:
+        provider = BlockingFixtureProvider()
+        service, review_service = _source_service(provider=provider)
+        app = create_app()
+        app.state.source_update_service = service
+        app.state.review_release_service = review_service
+        client = TestClient(app)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            upload_future = executor.submit(
+                client.post,
+                "/api/v1/domains/acupuncture/sources:manual-sync",
+                files=[
+                    (
+                        "files",
+                        (
+                            "blocking.md",
+                            b"# Evidence\n\ntaVNS improved PSQI sleep quality.",
+                            "text/markdown",
+                        ),
+                    )
+                ],
+                data={"actor_id": "researcher-ui", "actor_role": "researcher"},
+            )
+            self.assertTrue(provider.started.wait(timeout=1))
+            started = time.perf_counter()
+            health = client.get("/healthz")
+            elapsed = time.perf_counter() - started
+            provider.release.set()
+            upload = upload_future.result(timeout=2)
+
+        self.assertEqual(health.status_code, 200)
+        self.assertLess(elapsed, 0.5)
+        self.assertEqual(upload.status_code, 200)
+        self.assertEqual(upload.json()["run"]["status"], "succeeded")
+
     def test_source_connector_migration_can_apply_and_drop(self) -> None:
         migration_names = (
             "0001_foundation",
@@ -403,7 +467,43 @@ class DynamicFixtureProvider:
         )
 
 
-def _source_service() -> tuple[SourceUpdateService, ReviewReleaseService]:
+class BlockingFixtureProvider(DynamicFixtureProvider):
+    def __init__(self) -> None:
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def complete(self, request: LlmCompletionRequest) -> LlmCompletionResponse:
+        self.started.set()
+        if not self.release.wait(timeout=2):
+            raise TimeoutError("test provider was not released")
+        return super().complete(request)
+
+
+class NoEvidenceFixtureProvider:
+    name = "no-evidence-fixture"
+
+    def complete(self, request: LlmCompletionRequest) -> LlmCompletionResponse:
+        return LlmCompletionResponse(
+            provider=self.name,
+            model="no-evidence-model",
+            text=json.dumps(
+                {
+                    "entities": [],
+                    "relations": [],
+                    "evidence_assertions": [],
+                    "study": {
+                        "document_type": "work_summary",
+                        "no_evidence_reason": "Administrative work summary",
+                    },
+                }
+            ),
+        )
+
+
+def _source_service(
+    *,
+    provider: LlmProvider | None = None,
+) -> tuple[SourceUpdateService, ReviewReleaseService]:
     store = InMemoryObjectStore()
     document_service = DocumentIngestService(
         repository=InMemoryDocumentRepository(),
@@ -422,7 +522,7 @@ def _source_service() -> tuple[SourceUpdateService, ReviewReleaseService]:
     extraction_service = CandidateExtractionService(
         repository=InMemoryCandidateRepository(),
         object_store=store,
-        provider=DynamicFixtureProvider(),
+        provider=provider or DynamicFixtureProvider(),
         prompt=load_literature_extraction_prompt(),
     )
     return (

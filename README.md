@@ -93,17 +93,33 @@ deferred until the first corpus is available.
 T-040 adds an `EvidenceExtractor` service that reads parsed chunks and writes
 candidate-layer outputs only. It does not approve, publish, or write graph data.
 
-The default live provider adapter is MiMo, configured only through environment
-variables:
+The live extraction provider is selected with `LLM_PROVIDER`. DeepSeek is the
+recommended local configuration:
+
+- `LLM_PROVIDER=deepseek`
+- `DEEPSEEK_API_KEY`
+- `DEEPSEEK_BASE_URL=https://api.deepseek.com`
+- `DEEPSEEK_MODEL_ID=deepseek-v4-flash`
+- `DEEPSEEK_EXTRACTION_MODEL_ID` optional; falls back to `DEEPSEEK_MODEL_ID`
+- `DEEPSEEK_TIMEOUT_SECONDS` optional; defaults to `45`
+
+The adapter uses DeepSeek's OpenAI-compatible `/chat/completions` API with a
+Bearer API key. MiMo remains available by setting `LLM_PROVIDER=mimo` and the
+following environment variables:
 
 - `MIMO_API_KEY`
 - `MIMO_BASE_URL`
 - `MIMO_MODEL_ID`
 - `MIMO_EXTRACTION_MODEL_ID` optional; falls back to `MIMO_MODEL_ID`
+- `MIMO_TIMEOUT_SECONDS` optional; defaults to `45`
+
+Token Plan credentials use the `tp-...` key shown on the Token Plan management page and
+the matching regional `token-plan-*.xiaomimimo.com/v1` Base URL. The provider sends this
+credential with MiMo's documented `api-key` request header.
 
 Unit and integration tests use `FakeLlmProvider`, so no real key is required for
-offline validation. Live MiMo extraction is intentionally blocked until real
-provider settings are supplied.
+offline validation. Live extraction is intentionally blocked until the selected
+provider has a real API key.
 
 ### Incremental Updates and SourceConnector
 

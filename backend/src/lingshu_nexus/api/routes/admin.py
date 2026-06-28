@@ -311,20 +311,32 @@ async def admin_observability_events(
 async def admin_config_status(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, object]:
-    extraction_model = settings.mimo_extraction_model_id or settings.mimo_model_id
+    if settings.llm_provider == "deepseek":
+        api_key = settings.deepseek_api_key
+        base_url = settings.deepseek_base_url
+        extraction_model = (
+            settings.deepseek_extraction_model_id or settings.deepseek_model_id
+        )
+        timeout_seconds = settings.deepseek_timeout_seconds
+    else:
+        api_key = settings.mimo_api_key
+        base_url = settings.mimo_base_url
+        extraction_model = settings.mimo_extraction_model_id or settings.mimo_model_id
+        timeout_seconds = settings.mimo_timeout_seconds
     return {
         "app": {
             "environment": settings.app_env,
             "default_domain_id": settings.default_domain_id,
         },
-        "mimo": {
-            "base_url_configured": bool(settings.mimo_base_url)
-            and "example.invalid" not in settings.mimo_base_url,
-            "api_key_configured": bool(settings.mimo_api_key)
-            and not settings.mimo_api_key.startswith("replace-with"),
+        "llm": {
+            "provider": settings.llm_provider,
+            "base_url_configured": bool(base_url) and "example.invalid" not in base_url,
+            "api_key_configured": bool(api_key)
+            and not api_key.startswith("replace-with"),
             "model_configured": bool(extraction_model)
             and not extraction_model.startswith("replace-with"),
             "model_id": None if extraction_model.startswith("replace-with") else extraction_model,
+            "timeout_seconds": timeout_seconds,
         },
         "storage": {
             "database_url_configured": bool(settings.database_url),

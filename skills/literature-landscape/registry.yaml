@@ -5,6 +5,7 @@ scope: read_only
 minimum_role: researcher
 domain_ids:
   - acupuncture
+  - addiction
 server_allowed_tools:
   - published_graph_search
   - source_document_list

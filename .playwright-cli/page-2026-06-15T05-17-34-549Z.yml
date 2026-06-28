@@ -1,0 +1,81 @@
+- main "Research Console" [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 灵
+      - generic [ref=e7]:
+        - paragraph [ref=e8]: LingShu Nexus
+        - heading "Research Console" [level=1] [ref=e9]
+    - navigation "Workspace" [ref=e10]:
+      - button "Manage Knowledge operations" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - generic [ref=e17]:
+          - strong [ref=e18]: Manage
+          - generic [ref=e19]: Knowledge operations
+      - button "Chat Published evidence" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - generic [ref=e24]:
+          - strong [ref=e25]: Chat
+          - generic [ref=e26]: Published evidence
+    - generic [ref=e27]:
+      - generic [ref=e28]: Workspace
+      - strong [ref=e29]: Acupuncture Research
+      - paragraph [ref=e30]: Curated evidence, review governance, and traceable retrieval in one place.
+    - generic [ref=e31]:
+      - generic [ref=e32]: Loading
+      - button "Refresh workspace" [ref=e34] [cursor=pointer]:
+        - img [ref=e35]
+  - region "Management panel" [ref=e38]:
+    - generic [ref=e39]:
+      - generic [ref=e40]:
+        - paragraph [ref=e41]: Evidence Operations
+        - heading "Research management, made clear." [level=2] [ref=e42]:
+          - text: Research management,
+          - text: made clear.
+        - paragraph [ref=e43]: 集中管理科研资料、证据审核与知识图谱发布。仅用于内部科研辅助，不作为诊疗建议。
+      - generic [ref=e44]:
+        - generic [ref=e45]: Acupuncture · v1
+        - generic [ref=e46] [cursor=pointer]:
+          - img [ref=e47]
+          - text: Upload documents
+    - generic [ref=e49]:
+      - generic [ref=e51]:
+        - heading "Documents" [level=3] [ref=e52]
+        - generic [ref=e53]: "0"
+      - generic [ref=e54]:
+        - heading "Document Detail" [level=3] [ref=e56]
+        - paragraph [ref=e57]: No document selected.
+    - generic [ref=e58]:
+      - generic [ref=e60]:
+        - heading "Review Workbench" [level=3] [ref=e61]
+        - generic [ref=e62]: "0"
+      - generic [ref=e63]:
+        - heading "Decision" [level=3] [ref=e65]
+        - paragraph [ref=e66]: No assertion selected.
+    - generic [ref=e67]:
+      - generic [ref=e68]:
+        - generic [ref=e69]:
+          - heading "Graph Releases" [level=3] [ref=e70]
+          - button "Preview" [ref=e71] [cursor=pointer]
+        - generic [ref=e72]:
+          - generic [ref=e73]:
+            - generic [ref=e74]: Version
+            - textbox "Version" [ref=e75]: v-ui-2026-06-15
+          - button "Create Release" [ref=e77] [cursor=pointer]
+      - generic [ref=e79]:
+        - heading "Release History" [level=3] [ref=e80]
+        - generic [ref=e81]: "0"
+    - generic [ref=e82]:
+      - generic [ref=e83]:
+        - generic [ref=e84]:
+          - heading "Skills" [level=3] [ref=e85]
+          - generic [ref=e86]: "0"
+        - group [ref=e87]:
+          - generic "Upload Skill Package" [ref=e88] [cursor=pointer]
+        - generic [ref=e89]:
+          - generic [ref=e90]: Skill Test Query
+          - textbox "Skill Test Query" [ref=e91]: Cymba Conchae frequency 25 Hz PSQI parameter
+      - generic [ref=e92]:
+        - generic [ref=e93]:
+          - heading "Jobs & Audit" [level=3] [ref=e94]
+          - generic [ref=e95]: 0 failed
+        - paragraph
